@@ -17,6 +17,7 @@ public class PlayerMovement : MonoBehaviour
 
     private Rigidbody2D rb;
     private Animator animator;
+    private PlayerHealth playerHealth;
 
     private float horizontalInput;
     private bool isGrounded;
@@ -25,7 +26,6 @@ public class PlayerMovement : MonoBehaviour
     private InputAction moveAction;
     private InputAction jumpAction;
 
-    // Referencia pública para que otros scripts sepan si está mirando a la derecha
     public bool IsFacingRight => facingRight;
     public bool IsGrounded => isGrounded;
 
@@ -33,6 +33,7 @@ public class PlayerMovement : MonoBehaviour
     {
         rb = GetComponent<Rigidbody2D>();
         animator = GetComponent<Animator>();
+        playerHealth = GetComponent<PlayerHealth>();
 
         var playerMap = inputActions.FindActionMap("Player");
         moveAction = playerMap.FindAction("Move");
@@ -58,30 +59,38 @@ public class PlayerMovement : MonoBehaviour
         horizontalInput = moveAction.ReadValue<float>();
         isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
 
-        // --- FIX ANIMACIÓN IDLE ---
-        // Usamos la velocidad real del Rigidbody + un pequeño threshold
+        // Animación
         float currentSpeed = Mathf.Abs(rb.linearVelocity.x);
         if (currentSpeed < 0.1f) currentSpeed = 0f;
 
         animator.SetFloat("Speed", currentSpeed);
         animator.SetBool("IsGrounded", isGrounded);
 
-        // Volteo
-        if (horizontalInput > 0.1f && !facingRight)
-            Flip();
-        else if (horizontalInput < -0.1f && facingRight)
-            Flip();
+        // Volteo (solo si no está en knockback)
+        if (playerHealth == null || !playerHealth.IsInKnockback)
+        {
+            if (horizontalInput > 0.1f && !facingRight)
+                Flip();
+            else if (horizontalInput < -0.1f && facingRight)
+                Flip();
+        }
     }
 
     private void FixedUpdate()
     {
-        // Movimiento horizontal
+        // Si está en knockback, no tocamos la velocidad horizontal
+        if (playerHealth != null && playerHealth.IsInKnockback)
+        {
+            return;
+        }
+
+        // Movimiento normal
         rb.linearVelocity = new Vector2(horizontalInput * moveSpeed, rb.linearVelocity.y);
     }
 
     private void OnJump(InputAction.CallbackContext context)
     {
-        if (isGrounded)
+        if (isGrounded && (playerHealth == null || !playerHealth.IsInKnockback))
         {
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
             animator.SetTrigger("Jump");

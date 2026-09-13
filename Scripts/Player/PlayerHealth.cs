@@ -5,11 +5,15 @@ public class PlayerHealth : MonoBehaviour, IDamageable
 {
     [Header("Health Settings")]
     [SerializeField] private int maxHealth = 3;
-    [SerializeField] private float invulnerabilityDuration = 1.2f;   // Tiempo de invulnerabilidad después de recibir daño
-    [SerializeField] private float flashInterval = 0.1f;             // Velocidad del parpadeo
+    [SerializeField] private float invulnerabilityDuration = 1.2f;
+    [SerializeField] private float flashInterval = 0.1f;
 
-    [Header("Feedback (opcional)")]
-    [SerializeField] private SpriteRenderer spriteRenderer;          // Para el flash
+    [Header("Knockback")]
+    [SerializeField] private float knockbackForce = 8f;
+    [SerializeField] private float knockbackDuration = 0.18f;
+
+    [Header("Feedback")]
+    [SerializeField] private SpriteRenderer spriteRenderer;
     [SerializeField] private Color flashColor = new Color(1f, 0.4f, 0.4f, 1f);
 
     private int currentHealth;
@@ -18,15 +22,19 @@ public class PlayerHealth : MonoBehaviour, IDamageable
 
     private Color originalColor;
     private Animator animator;
+    private Rigidbody2D rb;
 
-    // Evento simple por si más adelante quieres que la UI escuche
-    public System.Action<int, int> OnHealthChanged;   // (current, max)
+    // Esto es lo importante para el movimiento
+    public bool IsInKnockback { get; private set; }
+
+    public System.Action<int, int> OnHealthChanged;
     public System.Action OnPlayerDied;
 
     private void Awake()
     {
         currentHealth = maxHealth;
         animator = GetComponent<Animator>();
+        rb = GetComponent<Rigidbody2D>();
 
         if (spriteRenderer == null)
             spriteRenderer = GetComponentInChildren<SpriteRenderer>();
@@ -37,11 +45,17 @@ public class PlayerHealth : MonoBehaviour, IDamageable
 
     private void Start()
     {
-        // Notificar a la UI al empezar (si la hubiera)
         OnHealthChanged?.Invoke(currentHealth, maxHealth);
     }
 
-    public void TakeDamage(int damage)   // ahora es público y cumple la interfaz
+    // Versión básica (cumple la interfaz)
+    public void TakeDamage(int damage)
+    {
+        TakeDamage(damage, Vector2.zero);
+    }
+
+    // Versión con knockback
+    public void TakeDamage(int damage, Vector2 knockbackDirection)
     {
         if (isInvulnerable || isDead) return;
 
@@ -53,11 +67,34 @@ public class PlayerHealth : MonoBehaviour, IDamageable
         if (currentHealth <= 0)
         {
             Die();
+            return;
         }
-        else
+
+        // Aplicar knockback si hay dirección
+        if (knockbackDirection != Vector2.zero && rb != null)
         {
-            StartCoroutine(InvulnerabilityCoroutine());
+            StartCoroutine(ApplyKnockback(knockbackDirection.normalized));
         }
+
+        StartCoroutine(InvulnerabilityCoroutine());
+    }
+
+    private IEnumerator ApplyKnockback(Vector2 direction)
+    {
+        IsInKnockback = true;
+
+        // Aplicamos la fuerza + un pequeño impulso vertical
+        rb.linearVelocity = new Vector2(direction.x * knockbackForce, rb.linearVelocity.y + 2.5f);
+
+        yield return new WaitForSeconds(knockbackDuration);
+
+        // Suavizamos la velocidad horizontal
+        if (rb != null)
+        {
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x * 0.35f, rb.linearVelocity.y);
+        }
+
+        IsInKnockback = false;
     }
 
     private IEnumerator InvulnerabilityCoroutine()
@@ -79,7 +116,6 @@ public class PlayerHealth : MonoBehaviour, IDamageable
             timer += flashInterval;
         }
 
-        // Restaurar color original
         if (spriteRenderer != null)
             spriteRenderer.color = originalColor;
 
@@ -91,19 +127,14 @@ public class PlayerHealth : MonoBehaviour, IDamageable
         if (isDead) return;
         isDead = true;
 
-        // Aquí más adelante puedes poner una animación de muerte
-        // animator.SetTrigger("Die");
-
         OnPlayerDied?.Invoke();
 
-        // Desactivar controles del jugador
         var movement = GetComponent<PlayerMovement>();
         var combat = GetComponent<PlayerCombat>();
 
         if (movement != null) movement.enabled = false;
         if (combat != null) combat.enabled = false;
 
-        // Pequeña espera antes de ir a GameOver (opcional)
         StartCoroutine(GoToGameOverAfterDelay(0.8f));
     }
 
@@ -123,7 +154,6 @@ public class PlayerHealth : MonoBehaviour, IDamageable
     }
 
     // --- Métodos públicos útiles ---
-
     public void Heal(int amount)
     {
         if (isDead) return;
