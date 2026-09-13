@@ -5,8 +5,7 @@ public class PatrolHorizontal : MonoBehaviour
     [Header("References")]
     [SerializeField] private EnemyCore core;
     [SerializeField] private Rigidbody2D rb;
-    [SerializeField] private SpriteRenderer spriteRenderer;
-    [SerializeField] private MovementZone movementZone;   // ← Ahora se asigna directo
+    [SerializeField] private MovementZone movementZone;
 
     [Header("Patrol Settings")]
     [SerializeField] private float moveSpeed = 2.5f;
@@ -19,7 +18,6 @@ public class PatrolHorizontal : MonoBehaviour
     [SerializeField] private Transform leftPoint;
     [SerializeField] private Transform rightPoint;
 
-    // Estado interno
     private bool movingRight;
     private float waitTimer = 0f;
     private bool isWaiting = false;
@@ -28,10 +26,12 @@ public class PatrolHorizontal : MonoBehaviour
     {
         if (core == null) core = GetComponentInParent<EnemyCore>();
         if (rb == null) rb = GetComponentInParent<Rigidbody2D>();
-        if (spriteRenderer == null) spriteRenderer = GetComponentInParent<SpriteRenderer>();
 
         movingRight = startFacingRight;
-        UpdateFacing();
+
+        // Aplicamos el facing inicial a través del Core
+        if (core != null)
+            core.SetFacing(movingRight);
     }
 
     private void OnEnable()
@@ -50,10 +50,9 @@ public class PatrolHorizontal : MonoBehaviour
     {
         if (core == null || rb == null) return;
 
-        // Solo actuamos en Patrol o Idle. En cualquier otro estado no tocamos el Rigidbody.
         if (core.CurrentState != EnemyState.Patrol && core.CurrentState != EnemyState.Idle)
         {
-            return;   // ← Importante: ya no ponemos la velocidad en 0
+            return;
         }
 
         if (isWaiting)
@@ -65,12 +64,11 @@ public class PatrolHorizontal : MonoBehaviour
             {
                 isWaiting = false;
                 movingRight = !movingRight;
-                UpdateFacing();
+                core.SetFacing(movingRight);          // ← Ahora usa el Core
             }
             return;
         }
 
-        // Movimiento de patrulla
         float direction = movingRight ? 1f : -1f;
         rb.linearVelocity = new Vector2(direction * moveSpeed, rb.linearVelocity.y);
 
@@ -84,50 +82,25 @@ public class PatrolHorizontal : MonoBehaviour
 
     private bool IsAtEdge()
     {
-        float currentX = transform.position.x;
-
         if (useMovementZoneLimits)
         {
             if (movementZone == null) return false;
 
-            // Pedimos la posición clampada un poco más adelante
             Vector3 nextPosition = transform.position + (movingRight ? Vector3.right : Vector3.left) * 0.2f;
             Vector3 clamped = movementZone.ClampPosition(nextPosition);
 
-            // Si al intentar avanzar la posición no cambia (o cambia muy poco), llegamos al borde
-            if (Mathf.Abs(clamped.x - transform.position.x) < 0.05f)
-            {
-                return true;
-            }
-
-            return false;
+            return Mathf.Abs(clamped.x - transform.position.x) < 0.05f;
         }
         else
         {
-            // Modo puntos manuales
             if (leftPoint == null || rightPoint == null) return false;
 
-            if (movingRight && currentX >= rightPoint.position.x)
-                return true;
+            float currentX = transform.position.x;
 
-            if (!movingRight && currentX <= leftPoint.position.x)
-                return true;
+            if (movingRight && currentX >= rightPoint.position.x) return true;
+            if (!movingRight && currentX <= leftPoint.position.x) return true;
 
             return false;
-        }
-    }
-
-    private void UpdateFacing()
-    {
-        if (spriteRenderer != null)
-        {
-            spriteRenderer.flipX = !movingRight;
-        }
-        else
-        {
-            Vector3 scale = transform.localScale;
-            scale.x = movingRight ? Mathf.Abs(scale.x) : -Mathf.Abs(scale.x);
-            transform.localScale = scale;
         }
     }
 
@@ -140,7 +113,6 @@ public class PatrolHorizontal : MonoBehaviour
         }
     }
 
-    // ---------- Gizmos ----------
     private void OnDrawGizmosSelected()
     {
         if (useMovementZoneLimits) return;

@@ -21,7 +21,8 @@ public class EnemyCore : MonoBehaviour
 
     [Header("Settings")]
     [SerializeField] private float hurtDuration = 0.35f;
-    [SerializeField] private float attackDuration = 0.8f;   // Tiempo base de ataque (después lo controlará el behavior)
+    [SerializeField] private float attackDuration = 0.8f;
+    [SerializeField] private bool startFacingRight = true;
 
     [Header("Debug")]
     [SerializeField] private bool showStateDebug = true;
@@ -29,12 +30,14 @@ public class EnemyCore : MonoBehaviour
     // Estado actual
     public EnemyState CurrentState { get; private set; } = EnemyState.Idle;
 
-    // Eventos para que los Behaviors escuchen
+    // Facing centralizado
+    public bool IsFacingRight { get; private set; } = true;
+
+    // Eventos
     public event Action<EnemyState> OnStateChanged;
-    public event Action OnAttackRequested;          // Cuando el core quiere que ataque
+    public event Action OnAttackRequested;
     public event Action OnDeath;
 
-    // Timers
     private float stateTimer = 0f;
 
     private void Awake()
@@ -43,6 +46,9 @@ public class EnemyCore : MonoBehaviour
         if (movementZone == null) movementZone = GetComponentInChildren<MovementZone>();
         if (detectionZone == null) detectionZone = GetComponentInChildren<DetectionZone>();
         if (attackZone == null) attackZone = GetComponentInChildren<AttackZone>();
+
+        // Facing inicial
+        SetFacing(startFacingRight);
     }
 
     private void OnEnable()
@@ -89,8 +95,6 @@ public class EnemyCore : MonoBehaviour
                 break;
 
             case EnemyState.Attack:
-                // Por ahora usamos un timer simple.
-                // Más adelante el Attack Behavior puede llamar a "FinishAttack()"
                 if (stateTimer >= attackDuration)
                 {
                     ChangeState(EnemyState.Chase);
@@ -150,7 +154,37 @@ public class EnemyCore : MonoBehaviour
         OnDeath?.Invoke();
     }
 
-    // ---------- API pública para Behaviors ----------
+    // ==================== FACING CENTRALIZADO ====================
+
+    public void SetFacing(bool faceRight)
+    {
+        if (IsFacingRight == faceRight) return;
+
+        IsFacingRight = faceRight;
+
+        Vector3 scale = transform.localScale;
+        scale.x = faceRight ? Mathf.Abs(scale.x) : -Mathf.Abs(scale.x);
+        transform.localScale = scale;
+    }
+
+    public void FaceTowards(Vector3 targetPosition)
+    {
+        float directionX = targetPosition.x - transform.position.x;
+        if (Mathf.Abs(directionX) > 0.05f)
+        {
+            SetFacing(directionX > 0f);
+        }
+    }
+
+    public void FaceDirection(float directionX)
+    {
+        if (Mathf.Abs(directionX) > 0.05f)
+        {
+            SetFacing(directionX > 0f);
+        }
+    }
+
+    // ==================== API pública para Behaviors ====================
 
     public bool IsPlayerDetected()
     {
