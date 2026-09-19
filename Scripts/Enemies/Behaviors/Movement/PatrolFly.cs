@@ -11,6 +11,10 @@ public class PatrolFly : MonoBehaviour
     [SerializeField] private float waitTimeAtPoint = 1.3f;
     [SerializeField] private float arriveDistance = 0.18f;
 
+    [Header("Smooth Flying (estilo hover mientras viaja)")]
+    [SerializeField] private float bobAmplitude = 0.18f;     // Qué tanto sube y baja mientras viaja
+    [SerializeField] private float bobFrequency = 2.2f;      // Velocidad del balanceo
+
     [Header("Waypoints (obligatorios)")]
     [Tooltip("Si está vacío, el enemigo no se moverá")]
     [SerializeField] private Transform[] waypoints;
@@ -18,6 +22,7 @@ public class PatrolFly : MonoBehaviour
     private int currentIndex = 0;
     private float waitTimer = 0f;
     private bool isWaiting = false;
+    private float bobTimer = 0f;
 
     private void Awake()
     {
@@ -47,21 +52,28 @@ public class PatrolFly : MonoBehaviour
     {
         if (core == null || rb == null) return;
 
-        // Ahora actúa en Idle Y en Patrol (igual que PatrolHorizontal)
+        // Actúa en Idle y en Patrol
         if (core.CurrentState != EnemyState.Patrol && core.CurrentState != EnemyState.Idle)
             return;
 
-        // Si no hay waypoints → no nos movemos
         if (!HasValidWaypoints())
         {
             rb.linearVelocity = Vector2.zero;
             return;
         }
 
+        bobTimer += Time.fixedDeltaTime;
+
         if (isWaiting)
         {
+            // Mientras espera también hace un poco de bobbing suave
             waitTimer -= Time.fixedDeltaTime;
-            rb.linearVelocity = Vector2.zero;
+
+            float bobOffset = Mathf.Sin(bobTimer * bobFrequency) * bobAmplitude * 0.6f;
+            Vector3 waitPos = waypoints[currentIndex].position + Vector3.up * bobOffset;
+            waitPos = core.GetClampedPosition(waitPos);
+
+            rb.linearVelocity = (waitPos - transform.position) / Time.fixedDeltaTime;
 
             if (waitTimer <= 0f)
             {
@@ -71,13 +83,20 @@ public class PatrolFly : MonoBehaviour
             return;
         }
 
+        // Movimiento hacia el waypoint + bobbing
         Transform target = waypoints[currentIndex];
         if (target == null) return;
 
         Vector3 direction = (target.position - transform.position).normalized;
+
+        // Posición base hacia el waypoint
         Vector3 desiredPos = transform.position + direction * moveSpeed * Time.fixedDeltaTime;
 
-        // Respetamos la MovementZone
+        // Le sumamos el movimiento vertical suave
+        float bobOffsetY = Mathf.Sin(bobTimer * bobFrequency) * bobAmplitude;
+        desiredPos.y += bobOffsetY * Time.fixedDeltaTime * 8f; // suavizado
+
+        // Respetamos la zona
         desiredPos = core.GetClampedPosition(desiredPos);
 
         rb.linearVelocity = (desiredPos - transform.position) / Time.fixedDeltaTime;
@@ -91,7 +110,6 @@ public class PatrolFly : MonoBehaviour
         {
             isWaiting = true;
             waitTimer = waitTimeAtPoint;
-            rb.linearVelocity = Vector2.zero;
         }
     }
 
@@ -115,11 +133,9 @@ public class PatrolFly : MonoBehaviour
         if (!HasValidWaypoints()) return;
 
         Gizmos.color = Color.cyan;
-
         for (int i = 0; i < waypoints.Length; i++)
         {
             if (waypoints[i] == null) continue;
-
             Gizmos.DrawWireSphere(waypoints[i].position, 0.15f);
 
             int next = (i + 1) % waypoints.Length;
