@@ -7,14 +7,22 @@ public class KeepDistance : MonoBehaviour
     [SerializeField] private Rigidbody2D rb;
 
     [Header("Distance Settings")]
-    [SerializeField] private float preferredDistance = 4.5f;
-    [SerializeField] private float distanceTolerance = 0.6f;   // Margen de error
-    [SerializeField] private float moveSpeed = 3.2f;
-    [SerializeField] private float strafeSpeed = 1.8f;         // Movimiento lateral mientras mantiene distancia
+    [SerializeField] private float preferredDistance = 4.2f;
+    [SerializeField] private float distanceTolerance = 0.55f;
+    [SerializeField] private float moveSpeed = 3.1f;
 
-    [Header("Behavior")]
+    [Header("Strafe Settings")]
     [SerializeField] private bool allowStrafe = true;
+    [SerializeField] private float strafeSpeed = 1.1f;
+    [SerializeField] private float strafeFrequency = 0.7f;   // Más bajo = menos temblor
+
+    [Header("Ground / Flyer")]
+    [SerializeField] private bool constrainToHorizontal = false; // ← Activalo en el Walker
+
+    [Header("Other")]
     [SerializeField] private bool facePlayer = true;
+
+    private float strafeTimer = 0f;
 
     private void Awake()
     {
@@ -37,7 +45,7 @@ public class KeepDistance : MonoBehaviour
 
         Vector3 desiredVelocity = Vector3.zero;
 
-        // Decidir si acercarse o alejarse
+        // Decisión principal: acercarse o alejarse
         if (currentDistance > preferredDistance + distanceTolerance)
         {
             // Muy lejos → acercarse
@@ -50,22 +58,38 @@ public class KeepDistance : MonoBehaviour
         }
         else
         {
-            // Distancia correcta → opcionalmente strafe
+            // Distancia correcta → strafe suave (si está activado)
             if (allowStrafe)
             {
-                // Movimiento perpendicular (strafe)
+                strafeTimer += Time.fixedDeltaTime * strafeFrequency;
+
+                // Movimiento perpendicular más suave
                 Vector3 perpendicular = new Vector3(-toPlayer.y, toPlayer.x, 0f).normalized;
-                // Alternamos dirección de vez en cuando o usamos seno
-                float strafeDir = Mathf.Sin(Time.time * 1.5f);
+                float strafeDir = Mathf.Sin(strafeTimer);
+
                 desiredVelocity = perpendicular * strafeSpeed * strafeDir;
             }
+        }
+
+        // Si es enemigo terrestre, eliminamos el movimiento vertical
+        if (constrainToHorizontal)
+        {
+            desiredVelocity.y = 0f;
         }
 
         // Aplicar movimiento respetando la zona
         Vector3 desiredPos = myPos + desiredVelocity * Time.fixedDeltaTime;
         desiredPos = core.GetClampedPosition(desiredPos);
 
-        rb.linearVelocity = (desiredPos - myPos) / Time.fixedDeltaTime;
+        Vector2 finalVelocity = (desiredPos - myPos) / Time.fixedDeltaTime;
+
+        // Si es terrestre, preservamos la velocidad Y actual (gravedad)
+        if (constrainToHorizontal)
+        {
+            finalVelocity.y = rb.linearVelocity.y;
+        }
+
+        rb.linearVelocity = finalVelocity;
 
         // Mirar al player
         if (facePlayer)
