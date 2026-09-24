@@ -5,72 +5,76 @@ using System.Collections.Generic;
 public class BossCore : EnemyCore
 {
     [Header("Boss Phases")]
-    [Tooltip("Ordenar de mayor a menor healthThreshold (100% → 0%)")]
+    [Tooltip("Ordenar de mayor a menor healthThreshold (1.0 = 100% → 0.0)")]
     [SerializeField] private List<BossPhase> phases = new List<BossPhase>();
 
     [Header("Debug")]
     [SerializeField] private bool showPhaseDebug = true;
 
     // Evento que se dispara cuando cambia de fase
-    public event Action<int, BossPhase> OnPhaseChanged;   // (nuevoIndex, fase)
+    public event Action<int, BossPhase> OnPhaseChanged; // (nuevoIndex, fase)
 
-    // Estado actual
     public int CurrentPhaseIndex { get; private set; } = -1;
-    public BossPhase CurrentPhase => (CurrentPhaseIndex >= 0 && CurrentPhaseIndex < phases.Count)
-        ? phases[CurrentPhaseIndex]
-        : null;
+
+    public BossPhase CurrentPhase =>
+        (CurrentPhaseIndex >= 0 && CurrentPhaseIndex < phases.Count)
+            ? phases[CurrentPhaseIndex]
+            : null;
 
     private EnemyHealth bossHealth;
 
     protected override void Awake()
     {
-        base.Awake();   // Importante: llama al Awake de EnemyCore
+        base.Awake();
 
         bossHealth = GetComponent<EnemyHealth>();
         if (bossHealth == null)
             bossHealth = GetComponentInChildren<EnemyHealth>();
 
-        // Ordenamos las fases de mayor a menor threshold por seguridad
-        phases.Sort((a, b) => b.healthThreshold.CompareTo(a.healthThreshold));
+        // Ordenamos de mayor a menor threshold por seguridad
+        if (phases != null && phases.Count > 1)
+            phases.Sort((a, b) => b.healthThreshold.CompareTo(a.healthThreshold));
+    }
+
+    private void OnEnable()
+    {
+        if (bossHealth != null)
+            bossHealth.OnHealthChanged += HandleHealthChanged;
+    }
+
+    private void OnDisable()
+    {
+        if (bossHealth != null)
+            bossHealth.OnHealthChanged -= HandleHealthChanged;
     }
 
     private void Start()
     {
-        // Inicializamos en la primera fase (la de mayor vida)
-        if (phases.Count > 0)
-        {
+        if (phases != null && phases.Count > 0)
             ForcePhase(0);
-        }
     }
 
-    private void Update()
+    private void HandleHealthChanged(int current, int max)
     {
-        // EnemyCore ya tiene su propio Update. 
-        // Aquí solo revisamos el cambio de fase por vida.
-        CheckPhaseTransition();
-    }
-
-    private void CheckPhaseTransition()
-    {
-        if (bossHealth == null || phases.Count == 0) return;
         if (CurrentState == EnemyState.Death) return;
+        if (phases == null || phases.Count == 0) return;
 
-        float healthPercent = (float)bossHealth.GetCurrentHealth() / bossHealth.GetMaxHealth();
+        float healthPercent = (float)current / max;
+        CheckPhaseTransition(healthPercent);
+    }
 
-        // Buscamos la fase más baja que todavía cumpla el threshold
+    private void CheckPhaseTransition(float healthPercent)
+    {
         int newPhaseIndex = 0;
+
         for (int i = 0; i < phases.Count; i++)
         {
             if (healthPercent <= phases[i].healthThreshold)
-            {
                 newPhaseIndex = i;
-            }
         }
 
         if (newPhaseIndex != CurrentPhaseIndex)
-        {
             ChangePhase(newPhaseIndex);
-        }
     }
 
     private void ChangePhase(int newIndex)
@@ -83,9 +87,9 @@ public class BossCore : EnemyCore
 
         if (showPhaseDebug)
         {
-            Debug.Log($"<color=magenta>{gameObject.name}</color> cambió a fase " +
+            Debug.Log($"<color=magenta>{gameObject.name}</color> → Fase " +
                       $"<color=yellow>{newPhase.phaseName}</color> " +
-                      $"(Index {newIndex} | Threshold {newPhase.healthThreshold:P0})");
+                      $"(Index {newIndex} | {newPhase.healthThreshold:P0})");
         }
 
         OnPhaseChanged?.Invoke(newIndex, newPhase);
@@ -105,8 +109,5 @@ public class BossCore : EnemyCore
         ChangePhase(index);
     }
 
-    /// <summary>
-    /// Devuelve la cantidad total de fases configuradas.
-    /// </summary>
-    public int GetPhaseCount() => phases.Count;
+    public int GetPhaseCount() => phases != null ? phases.Count : 0;
 }

@@ -40,7 +40,7 @@ public class EnemyCore : MonoBehaviour
 
     private float stateTimer = 0f;
 
-    private void Awake()
+    protected virtual void Awake()
     {
         if (health == null) health = GetComponent<EnemyHealth>();
         if (movementZone == null) movementZone = GetComponentInChildren<MovementZone>();
@@ -63,7 +63,7 @@ public class EnemyCore : MonoBehaviour
             health.OnDeath -= HandleDeath;
     }
 
-    private void Update()
+    protected virtual void Update()
     {
         if (CurrentState == EnemyState.Death) return;
 
