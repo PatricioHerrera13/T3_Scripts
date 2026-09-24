@@ -8,21 +8,25 @@ public class ChargeAttack : MonoBehaviour
     [SerializeField] private Rigidbody2D rb;
     [SerializeField] private LayerMask playerLayer;
 
+    [Header("Pattern (opcional)")]
+    [Tooltip("Si está vacío usa TowardPlayer (comportamiento actual)")]
+    [SerializeField] private MonoBehaviour chargePattern;   // Debe implementar IChargePattern
+
     [Header("Timing")]
     [SerializeField] private float windupTime = 0.75f;
     [SerializeField] private float recoveryTime = 0.35f;
-    [SerializeField] private float attackCooldown = 1.8f;
+    [SerializeField] private float attackCooldown = 2.0f;
 
-    [Header("Dash")]
-    [SerializeField] private float dashSpeed = 9.5f;
-    [SerializeField] private float dashDistance = 4.8f;          // Distancia total del dash
-    [SerializeField] private float overshoot = 0.6f;             // Cuánto se pasa del player
-    [SerializeField] private Vector2 windupOffset = new Vector2(0f, 0.4f); // Offset relativo al player (telegraph)
+    [Header("Dash (solo se usan si no hay Pattern)")]
+    [SerializeField] private float dashSpeed = 9.8f;
+    [SerializeField] private float dashDistance = 4.8f;
+    [SerializeField] private float overshoot = 0.65f;
+    [SerializeField] private Vector2 windupOffset = new Vector2(0f, 0.4f);
 
     [Header("Damage")]
     [SerializeField] private int damage = 1;
     [SerializeField] private float damageRadius = 0.85f;
-    [SerializeField] private float damageInterval = 0.28f;       // Evita multi-hit spam
+    [SerializeField] private float damageInterval = 0.28f;
 
     [Header("Options")]
     [SerializeField] private bool faceDuringWindup = true;
@@ -38,10 +42,22 @@ public class ChargeAttack : MonoBehaviour
     private Vector3 dashEndPos;
     private Vector3 dashDirection;
 
+    private IChargePattern pattern;
+
     private void Awake()
     {
         if (core == null) core = GetComponentInParent<EnemyCore>();
         if (rb == null) rb = GetComponentInParent<Rigidbody2D>();
+
+        // Intentamos obtener el patrón si está asignado
+        if (chargePattern != null)
+        {
+            pattern = chargePattern as IChargePattern;
+            if (pattern == null)
+            {
+                Debug.LogWarning($"{name}: El objeto asignado en Charge Pattern no implementa IChargePattern", this);
+            }
+        }
     }
 
     private void OnEnable()
@@ -55,7 +71,6 @@ public class ChargeAttack : MonoBehaviour
         if (core != null)
             core.OnAttackRequested -= HandleAttackRequested;
 
-        // Seguridad: si se desactiva a mitad de ataque, frenamos
         if (rb != null)
             rb.linearVelocity = Vector2.zero;
     }
@@ -68,7 +83,6 @@ public class ChargeAttack : MonoBehaviour
         }
         else
         {
-            // Si está en cooldown, liberamos el estado Attack de inmediato
             core.FinishAttack();
         }
     }
@@ -79,44 +93,37 @@ public class ChargeAttack : MonoBehaviour
         lastAttackTime = Time.time;
         lastDamageTime = -999f;
 
-        // ====================== WINDUP ======================
-        // Calculamos dirección hacia el player + un poco de overshoot
         Vector3 playerPos = core.GetPlayerPosition();
         Vector3 myPos = transform.position;
 
-        Vector3 toPlayer = (playerPos - myPos).normalized;
-        if (toPlayer.sqrMagnitude < 0.01f)
-            toPlayer = core.IsFacingRight ? Vector3.right : Vector3.left;
-
-        // Punto de windup (opcional – telegraph)
-        Vector3 windupTarget = playerPos + (Vector3)windupOffset;
-        windupTarget = core.GetClampedPosition(windupTarget);
-
-        // Punto final del dash (player + overshoot)
-        dashEndPos = playerPos + toPlayer * overshoot;
-        dashEndPos = core.GetClampedPosition(dashEndPos);
-
-        dashStartPos = transform.position;
-        dashDirection = (dashEndPos - dashStartPos).normalized;
+        // ========== CÁLCULO DEL PATH ==========
+        if (pattern != null)
+        {
+            // Usa el patrón modular
+            pattern.CalculatePath(core, myPos, playerPos,
+                out dashStartPos, out dashEndPos, out dashDirection);
+        }
+        else
+        {
+            // Fallback: TowardPlayer (comportamiento actual)
+            CalculateTowardPlayerPath(myPos, playerPos);
+        }
 
         // Facing al inicio
         if (faceDuringWindup)
             core.FaceTowards(playerPos);
 
-        // Esperamos el tiempo de carga (aquí más adelante se puede poner animación / VFX)
+        // ====================== WINDUP ======================
         float windupTimer = 0f;
         while (windupTimer < windupTime)
         {
-            // Si el estado ya no es Attack (Hurt / Death), abortamos
             if (core.CurrentState != EnemyState.Attack)
             {
                 AbortAttack();
                 yield break;
             }
 
-            // Durante el windup nos mantenemos quietos (o nos movemos suavemente al offset si querés)
             rb.linearVelocity = Vector2.zero;
-
             windupTimer += Time.deltaTime;
             yield return null;
         }
@@ -124,8 +131,13 @@ public class ChargeAttack : MonoBehaviour
         // ====================== DASH ======================
         float distanceTraveled = 0f;
         Vector3 previousPos = transform.position;
+        float maxDistance = Vector3.Distance(dashStartPos, dashEndPos);
 
-        while (distanceTraveled < dashDistance)
+        // Si el patrón no definió bien la distancia, usamos la del inspector
+        if (maxDistance < 0.1f)
+            maxDistance = dashDistance;
+
+        while (distanceTraveled < maxDistance)
         {
             if (core.CurrentState != EnemyState.Attack)
             {
@@ -133,32 +145,25 @@ public class ChargeAttack : MonoBehaviour
                 yield break;
             }
 
-            // Movimiento
             Vector3 desiredPos = transform.position + dashDirection * dashSpeed * Time.deltaTime;
             desiredPos = core.GetClampedPosition(desiredPos);
 
-            Vector2 velocity = (desiredPos - transform.position) / Time.deltaTime;
-            rb.linearVelocity = velocity;
+            rb.linearVelocity = (desiredPos - transform.position) / Time.deltaTime;
 
-            // Facing
             if (faceDuringDash)
                 core.FaceDirection(dashDirection.x);
 
-            // Daño
             TryDealDamage();
 
-            // Acumulamos distancia real recorrida
             distanceTraveled += Vector3.Distance(previousPos, transform.position);
             previousPos = transform.position;
 
-            // Seguridad: si llegamos muy cerca del final, salimos
             if (Vector3.Distance(transform.position, dashEndPos) < 0.15f)
                 break;
 
             yield return null;
         }
 
-        // Frenamos al terminar el dash
         rb.linearVelocity = Vector2.zero;
 
         // ====================== RECOVERY ======================
@@ -176,9 +181,22 @@ public class ChargeAttack : MonoBehaviour
             yield return null;
         }
 
-        // Fin limpio
         isAttacking = false;
         core.FinishAttack();
+    }
+
+    // ========== Fallback TowardPlayer (el comportamiento actual) ==========
+    private void CalculateTowardPlayerPath(Vector3 myPos, Vector3 playerPos)
+    {
+        Vector3 toPlayer = (playerPos - myPos).normalized;
+        if (toPlayer.sqrMagnitude < 0.01f)
+            toPlayer = core.IsFacingRight ? Vector3.right : Vector3.left;
+
+        dashEndPos = playerPos + toPlayer * overshoot;
+        dashEndPos = core.GetClampedPosition(dashEndPos);
+
+        dashStartPos = myPos;
+        dashDirection = (dashEndPos - dashStartPos).normalized;
     }
 
     private void TryDealDamage()
@@ -190,7 +208,6 @@ public class ChargeAttack : MonoBehaviour
 
         foreach (var hit in hits)
         {
-            // Prioridad a PlayerHealth (para knockback)
             PlayerHealth playerHealth = hit.GetComponent<PlayerHealth>();
             if (playerHealth != null)
             {
@@ -200,7 +217,6 @@ public class ChargeAttack : MonoBehaviour
                 continue;
             }
 
-            // Fallback
             IDamageable damageable = hit.GetComponent<IDamageable>();
             if (damageable != null)
             {
@@ -215,7 +231,6 @@ public class ChargeAttack : MonoBehaviour
         isAttacking = false;
         if (rb != null)
             rb.linearVelocity = Vector2.zero;
-        // No llamamos FinishAttack aquí porque el estado ya cambió (Hurt/Death)
     }
 
 #if UNITY_EDITOR
@@ -223,11 +238,9 @@ public class ChargeAttack : MonoBehaviour
     {
         if (!showGizmos) return;
 
-        // Radio de daño
         Gizmos.color = new Color(1f, 0.2f, 0.2f, 0.6f);
         Gizmos.DrawWireSphere(transform.position, damageRadius);
 
-        // Si estamos en play y tenemos datos de dash, dibujamos la trayectoria
         if (Application.isPlaying && isAttacking)
         {
             Gizmos.color = Color.yellow;
