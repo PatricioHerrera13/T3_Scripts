@@ -18,6 +18,8 @@ public class MeleeAttack : MonoBehaviour
     private float lastAttackTime = -999f;
     private bool isAttacking = false;
 
+    private bool IsControlledByBoss => core is BossCore;
+
     private void Awake()
     {
         if (core == null) core = GetComponentInParent<EnemyCore>();
@@ -25,7 +27,7 @@ public class MeleeAttack : MonoBehaviour
 
     private void OnEnable()
     {
-        if (core != null)
+        if (core != null && !IsControlledByBoss)
             core.OnAttackRequested += HandleAttackRequested;
     }
 
@@ -37,13 +39,19 @@ public class MeleeAttack : MonoBehaviour
 
     private void HandleAttackRequested()
     {
+        TriggerAttack();
+    }
+
+    public void TriggerAttack()
+    {
         if (Time.time >= lastAttackTime + attackCooldown && !isAttacking)
         {
             StartCoroutine(PerformAttack());
         }
         else
         {
-            core.FinishAttack();
+            if (core != null)
+                core.FinishAttack();
         }
     }
 
@@ -52,7 +60,6 @@ public class MeleeAttack : MonoBehaviour
         isAttacking = true;
         lastAttackTime = Time.time;
 
-        // El enemigo mira hacia el player antes de atacar
         if (core != null)
         {
             core.FaceTowards(core.GetPlayerPosition());
@@ -80,7 +87,6 @@ public class MeleeAttack : MonoBehaviour
 
         foreach (var hit in hits)
         {
-            // Priorizamos PlayerHealth para poder aplicar knockback
             PlayerHealth playerHealth = hit.GetComponent<PlayerHealth>();
             if (playerHealth != null)
             {
@@ -89,7 +95,6 @@ public class MeleeAttack : MonoBehaviour
                 continue;
             }
 
-            // Fallback para cualquier otro IDamageable
             IDamageable damageable = hit.GetComponent<IDamageable>();
             if (damageable != null)
             {
@@ -98,7 +103,6 @@ public class MeleeAttack : MonoBehaviour
         }
     }
 
-    // ---------- Gizmos ----------
     private void OnDrawGizmosSelected()
     {
         if (!showGizmos || attackPoint == null) return;

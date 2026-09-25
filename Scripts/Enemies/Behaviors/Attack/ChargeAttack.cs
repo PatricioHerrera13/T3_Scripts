@@ -44,12 +44,13 @@ public class ChargeAttack : MonoBehaviour
 
     private IChargePattern pattern;
 
+    private bool IsControlledByBoss => core is BossCore;
+
     private void Awake()
     {
         if (core == null) core = GetComponentInParent<EnemyCore>();
         if (rb == null) rb = GetComponentInParent<Rigidbody2D>();
 
-        // Intentamos obtener el patrón si está asignado
         if (chargePattern != null)
         {
             pattern = chargePattern as IChargePattern;
@@ -62,7 +63,8 @@ public class ChargeAttack : MonoBehaviour
 
     private void OnEnable()
     {
-        if (core != null)
+        // Solo se suscribe si NO es un Boss (el BossAttackSelector se encarga)
+        if (core != null && !IsControlledByBoss)
             core.OnAttackRequested += HandleAttackRequested;
     }
 
@@ -75,7 +77,14 @@ public class ChargeAttack : MonoBehaviour
             rb.linearVelocity = Vector2.zero;
     }
 
+    // ========== Llamado por enemigos normales ==========
     private void HandleAttackRequested()
+    {
+        TriggerAttack();
+    }
+
+    // ========== Llamado por BossAttackSelector ==========
+    public void TriggerAttack()
     {
         if (Time.time >= lastAttackTime + attackCooldown && !isAttacking)
         {
@@ -83,7 +92,8 @@ public class ChargeAttack : MonoBehaviour
         }
         else
         {
-            core.FinishAttack();
+            if (core != null)
+                core.FinishAttack();
         }
     }
 
@@ -99,13 +109,11 @@ public class ChargeAttack : MonoBehaviour
         // ========== CÁLCULO DEL PATH ==========
         if (pattern != null)
         {
-            // Usa el patrón modular
             pattern.CalculatePath(core, myPos, playerPos,
                 out dashStartPos, out dashEndPos, out dashDirection);
         }
         else
         {
-            // Fallback: TowardPlayer (comportamiento actual)
             CalculateTowardPlayerPath(myPos, playerPos);
         }
 
@@ -133,7 +141,6 @@ public class ChargeAttack : MonoBehaviour
         Vector3 previousPos = transform.position;
         float maxDistance = Vector3.Distance(dashStartPos, dashEndPos);
 
-        // Si el patrón no definió bien la distancia, usamos la del inspector
         if (maxDistance < 0.1f)
             maxDistance = dashDistance;
 
@@ -185,7 +192,6 @@ public class ChargeAttack : MonoBehaviour
         core.FinishAttack();
     }
 
-    // ========== Fallback TowardPlayer (el comportamiento actual) ==========
     private void CalculateTowardPlayerPath(Vector3 myPos, Vector3 playerPos)
     {
         Vector3 toPlayer = (playerPos - myPos).normalized;

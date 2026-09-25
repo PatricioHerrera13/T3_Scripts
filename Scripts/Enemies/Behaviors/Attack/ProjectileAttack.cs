@@ -5,7 +5,7 @@ public class ProjectileAttack : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private EnemyCore core;
-    [SerializeField] private Transform firePoint;               // Tu AttackPoint
+    [SerializeField] private Transform firePoint;
     [SerializeField] private GameObject projectilePrefab;
 
     [Header("Attack Settings")]
@@ -16,6 +16,8 @@ public class ProjectileAttack : MonoBehaviour
     private float lastAttackTime = -999f;
     private bool isAttacking = false;
 
+    private bool IsControlledByBoss => core is BossCore;
+
     private void Awake()
     {
         if (core == null) core = GetComponentInParent<EnemyCore>();
@@ -23,7 +25,7 @@ public class ProjectileAttack : MonoBehaviour
 
     private void OnEnable()
     {
-        if (core != null)
+        if (core != null && !IsControlledByBoss)
             core.OnAttackRequested += HandleAttackRequested;
     }
 
@@ -35,13 +37,19 @@ public class ProjectileAttack : MonoBehaviour
 
     private void HandleAttackRequested()
     {
+        TriggerAttack();
+    }
+
+    public void TriggerAttack()
+    {
         if (Time.time >= lastAttackTime + attackCooldown && !isAttacking)
         {
             StartCoroutine(PerformAttack());
         }
         else
         {
-            core.FinishAttack();
+            if (core != null)
+                core.FinishAttack();
         }
     }
 
@@ -52,7 +60,6 @@ public class ProjectileAttack : MonoBehaviour
 
         // Aquí más adelante: animator.SetTrigger("Attack");
 
-        // Hacemos que el enemigo mire hacia el player antes de disparar
         if (core != null)
         {
             core.FaceTowards(core.GetPlayerPosition());
@@ -90,10 +97,8 @@ public class ProjectileAttack : MonoBehaviour
             return;
         }
 
-        // Dirección hacia el player
         Vector2 direction = (core.GetPlayerPosition() - firePoint.position).normalized;
 
-        // Instanciamos desde la posición exacta del AttackPoint
         GameObject projectile = Instantiate(projectilePrefab, firePoint.position, Quaternion.identity);
 
         Projectile projScript = projectile.GetComponent<Projectile>();
@@ -108,16 +113,13 @@ public class ProjectileAttack : MonoBehaviour
         }
     }
 
-    // ---------- Gizmos ----------
     private void OnDrawGizmosSelected()
     {
         if (!showGizmos || firePoint == null) return;
 
-        // Punto de disparo
         Gizmos.color = new Color(1f, 0.6f, 0.1f, 0.9f);
         Gizmos.DrawWireSphere(firePoint.position, 0.15f);
 
-        // Dirección aproximada según el facing actual
         bool facingRight = true;
         if (core != null)
             facingRight = core.IsFacingRight;
