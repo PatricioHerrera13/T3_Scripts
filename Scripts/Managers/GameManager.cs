@@ -1,6 +1,5 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using System.Collections;
 
 public class GameManager : MonoBehaviour
 {
@@ -11,15 +10,16 @@ public class GameManager : MonoBehaviour
     public string loadingScene = "Loading";
     public string level01Scene = "Level_01";
     public string level02Scene = "Level_02";
+    public string level03Scene = "Level_03";
     public string levelCompleteScene = "LevelComplete";
     public string gameOverScene = "GameOver";
     public string endingScene = "Ending";
 
     private string sceneToLoad;
+    private string lastCompletedLevel;   // ← importante: recuerda de qué nivel venimos
 
     private void Awake()
     {
-        // Singleton
         if (Instance == null)
         {
             Instance = this;
@@ -33,7 +33,6 @@ public class GameManager : MonoBehaviour
 
     private void Start()
     {
-        // Si estamos en la escena Boot, vamos al Main Menu
         if (SceneManager.GetActiveScene().name == "Boot")
         {
             LoadMainMenu();
@@ -53,18 +52,41 @@ public class GameManager : MonoBehaviour
         SceneManager.LoadScene(loadingScene);
     }
 
+    /// <summary>
+    /// Llamar desde GoalZone o desde la muerte del Boss.
+    /// Guarda el nivel actual y va a la pantalla de LevelComplete.
+    /// </summary>
+    public void CompleteCurrentLevel()
+    {
+        lastCompletedLevel = SceneManager.GetActiveScene().name;
+        SceneManager.LoadScene(levelCompleteScene);
+    }
+
+    /// <summary>
+    /// Llamar desde el botón "Continuar" de la escena LevelComplete.
+    /// </summary>
     public void LoadNextLevel()
     {
-        string currentScene = SceneManager.GetActiveScene().name;
-
-        if (currentScene == level01Scene)
+        if (lastCompletedLevel == level01Scene)
         {
             sceneToLoad = level02Scene;
             SceneManager.LoadScene(loadingScene);
         }
-        else if (currentScene == level02Scene)
+        else if (lastCompletedLevel == level02Scene)
         {
+            sceneToLoad = level03Scene;
+            SceneManager.LoadScene(loadingScene);
+        }
+        else if (lastCompletedLevel == level03Scene)
+        {
+            // Victoria final → Ending
             SceneManager.LoadScene(endingScene);
+        }
+        else
+        {
+            // Fallback de seguridad
+            Debug.LogWarning("LoadNextLevel: lastCompletedLevel desconocido → MainMenu");
+            LoadMainMenu();
         }
     }
 
@@ -79,12 +101,12 @@ public class GameManager : MonoBehaviour
         SceneManager.LoadScene(gameOverScene);
     }
 
+    // Ya no se usa directamente (ahora usamos CompleteCurrentLevel)
     public void LoadLevelComplete()
     {
-        SceneManager.LoadScene(levelCompleteScene);
+        CompleteCurrentLevel();
     }
 
-    // Este método lo llama la pantalla de Loading
     public string GetSceneToLoad()
     {
         return sceneToLoad;
