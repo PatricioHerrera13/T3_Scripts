@@ -119,8 +119,15 @@ public class EnemyHealth : MonoBehaviour, IDamageable
 
         OnDeath?.Invoke();
 
-        // Por ahora simplemente desactivamos el enemigo.
-        // Más adelante el EnemyCore se encargará de la animación de muerte, etc.
+        // Esperamos un poco para que se vea la animación de muerte
+        StartCoroutine(DisableAfterDeathAnimation());
+    }
+
+    private IEnumerator DisableAfterDeathAnimation()
+    {
+        // Tiempo aproximado de la animación de Death (ajustalo después)
+        yield return new WaitForSeconds(0.8f);
+
         gameObject.SetActive(false);
     }
 
