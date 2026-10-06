@@ -16,13 +16,17 @@ public class EnemyHealth : MonoBehaviour, IDamageable
     [SerializeField] private SpriteRenderer spriteRenderer;
     [SerializeField] private Color flashColor = new Color(1f, 0.4f, 0.4f, 1f);
 
+    [Header("Death")]
+    [Tooltip("Tiempo que espera antes de desactivar el GameObject (para que se vea la animación de muerte)")]
+    [SerializeField] private float deathDisableDelay = 0.8f;
+
     private int currentHealth;
     private bool isInvulnerable = false;
     private bool isDead = false;
 
     private Color originalColor;
     private Rigidbody2D rb;
-    private EnemyCore enemyCore;       // Lo usaremos después
+    private EnemyCore enemyCore;
 
     // Eventos
     public System.Action OnDeath;
@@ -63,11 +67,10 @@ public class EnemyHealth : MonoBehaviour, IDamageable
         if (canReceiveKnockback && rb != null)
         {
             // El knockback se aplicará desde quien haga daño (dirección)
-            // Por ahora lo dejamos preparado
         }
     }
 
-    // Versión con dirección de knockback (la usaremos desde el proyectil o ataques)
+    // Versión con dirección de knockback
     public void TakeDamage(int damage, Vector2 knockbackDirection)
     {
         TakeDamage(damage);
@@ -82,8 +85,7 @@ public class EnemyHealth : MonoBehaviour, IDamageable
     {
         rb.linearVelocity = direction * knockbackForce;
         yield return new WaitForSeconds(knockbackDuration);
-        
-        // Opcional: frenar un poco después del knockback
+
         if (rb != null)
             rb.linearVelocity = new Vector2(rb.linearVelocity.x * 0.3f, rb.linearVelocity.y);
     }
@@ -117,17 +119,16 @@ public class EnemyHealth : MonoBehaviour, IDamageable
         if (isDead) return;
         isDead = true;
 
+        Debug.Log($"<color=red>[{gameObject.name}] DIE() llamado — vida llegó a 0</color>");
+
         OnDeath?.Invoke();
 
-        // Esperamos un poco para que se vea la animación de muerte
         StartCoroutine(DisableAfterDeathAnimation());
     }
 
     private IEnumerator DisableAfterDeathAnimation()
     {
-        // Tiempo aproximado de la animación de Death (ajustalo después)
-        yield return new WaitForSeconds(0.8f);
-
+        yield return new WaitForSeconds(deathDisableDelay);
         gameObject.SetActive(false);
     }
 

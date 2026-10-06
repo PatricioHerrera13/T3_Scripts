@@ -1,11 +1,12 @@
 using UnityEngine;
+using System.Collections;
 
-/// <summary>
-/// Colocar en el mismo GameObject que tiene EnemyHealth / BossCore.
-/// Cuando el Boss muere → llama a CompleteCurrentLevel().
-/// </summary>
 public class BossLevelCompleteOnDeath : MonoBehaviour
 {
+    [Header("Timing")]
+    [Tooltip("Tiempo que esperamos para que se vea la animación de muerte del Boss")]
+    [SerializeField] private float deathAnimationDuration = 1.4f;
+
     private EnemyHealth health;
 
     private void Awake()
@@ -29,6 +30,14 @@ public class BossLevelCompleteOnDeath : MonoBehaviour
 
     private void HandleBossDeath()
     {
+        // Esperamos a que termine la animación de muerte antes de cambiar de escena
+        StartCoroutine(WaitAndCompleteLevel());
+    }
+
+    private IEnumerator WaitAndCompleteLevel()
+    {
+        yield return new WaitForSeconds(deathAnimationDuration);
+
         if (GameManager.Instance != null)
         {
             GameManager.Instance.CompleteCurrentLevel();

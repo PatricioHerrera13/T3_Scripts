@@ -36,14 +36,18 @@ public class BossCore : EnemyCore
             phases.Sort((a, b) => b.healthThreshold.CompareTo(a.healthThreshold));
     }
 
-    private void OnEnable()
+    protected override void OnEnable()
     {
+        base.OnEnable();   // ← importante: suscribe el OnDeath del EnemyCore
+
         if (bossHealth != null)
             bossHealth.OnHealthChanged += HandleHealthChanged;
     }
 
-    private void OnDisable()
+    protected override void OnDisable()
     {
+        base.OnDisable();  // ← importante: desuscribe el OnDeath
+
         if (bossHealth != null)
             bossHealth.OnHealthChanged -= HandleHealthChanged;
     }
