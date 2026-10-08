@@ -1,5 +1,6 @@
 using UnityEngine;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 
 public class BossCore : EnemyCore
@@ -20,6 +21,12 @@ public class BossCore : EnemyCore
         (CurrentPhaseIndex >= 0 && CurrentPhaseIndex < phases.Count)
             ? phases[CurrentPhaseIndex]
             : null;
+
+    // ========== NUEVO: Sistema de transición ==========
+    private bool isTransitioning = false;
+    public bool IsTransitioning => isTransitioning;
+
+    private Coroutine transitionCoroutine;
 
     private EnemyHealth bossHealth;
 
@@ -50,6 +57,14 @@ public class BossCore : EnemyCore
 
         if (bossHealth != null)
             bossHealth.OnHealthChanged -= HandleHealthChanged;
+
+        // Limpiamos la coroutine si se desactiva
+        if (transitionCoroutine != null)
+        {
+            StopCoroutine(transitionCoroutine);
+            transitionCoroutine = null;
+            isTransitioning = false;
+        }
     }
 
     private void Start()
@@ -96,8 +111,73 @@ public class BossCore : EnemyCore
                       $"(Index {newIndex} | {newPhase.healthThreshold:P0})");
         }
 
+        // Iniciamos la transición (bloquea ataques)
+        StartPhaseTransition(newPhase);
+
         OnPhaseChanged?.Invoke(newIndex, newPhase);
     }
+
+    // ==================== SISTEMA DE TRANSICIÓN ====================
+
+    private void StartPhaseTransition(BossPhase phase)
+    {
+        // Cancelamos cualquier transición anterior
+        if (transitionCoroutine != null)
+        {
+            StopCoroutine(transitionCoroutine);
+            transitionCoroutine = null;
+        }
+
+        float duration = phase.transitionDuration;
+
+        // Si no pusiste duración en el Inspector, usamos un valor por defecto
+        // Ajustá este número según la duración real de tu animación F1_PhaseChange
+        if (duration <= 0f)
+            duration = 1.4f;
+
+        transitionCoroutine = StartCoroutine(PhaseTransitionRoutine(duration));
+    }
+
+    private IEnumerator PhaseTransitionRoutine(float duration)
+    {
+        isTransitioning = true;
+
+        // Si estaba atacando, lo sacamos del estado Attack
+        if (CurrentState == EnemyState.Attack)
+        {
+            FinishAttack();
+        }
+
+        // Forzamos Idle para que se quede quieto durante la animación
+        ChangeState(EnemyState.Idle);
+
+        if (showPhaseDebug)
+            Debug.Log($"<color=magenta>{gameObject.name}</color> → Iniciando transición ({duration:F2}s). No puede atacar.");
+
+        yield return new WaitForSeconds(duration);
+
+        isTransitioning = false;
+        transitionCoroutine = null;
+
+        if (showPhaseDebug)
+            Debug.Log($"<color=magenta>{gameObject.name}</color> → Transición terminada. Ya puede moverse y atacar.");
+    }
+
+    // ==================== BLOQUEO DE ATAQUE DURANTE TRANSICIÓN ====================
+
+    // Usamos 'new' porque ChangeState no es virtual en EnemyCore
+    public new void ChangeState(EnemyState newState)
+    {
+        // Mientras está en transición, no dejamos entrar a Attack
+        if (isTransitioning && newState == EnemyState.Attack)
+        {
+            return;
+        }
+
+        base.ChangeState(newState);
+    }
+
+    // ==================== API PÚBLICA ====================
 
     /// <summary>
     /// Fuerza el cambio a una fase específica (útil para testing y secuencias especiales).

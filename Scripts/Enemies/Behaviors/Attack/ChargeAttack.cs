@@ -5,6 +5,7 @@ public class ChargeAttack : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private EnemyCore core;
+    [SerializeField] private EnemyAnimator enemyAnimator;
     [SerializeField] private Rigidbody2D rb;
     [SerializeField] private LayerMask playerLayer;
 
@@ -49,6 +50,7 @@ public class ChargeAttack : MonoBehaviour
     private void Awake()
     {
         if (core == null) core = GetComponentInParent<EnemyCore>();
+        if (enemyAnimator == null) enemyAnimator = GetComponentInParent<EnemyAnimator>();
         if (rb == null) rb = GetComponentInParent<Rigidbody2D>();
 
         if (chargePattern != null)
@@ -102,6 +104,10 @@ public class ChargeAttack : MonoBehaviour
         isAttacking = true;
         lastAttackTime = Time.time;
         lastDamageTime = -999f;
+
+        // Disparamos la animación SOLO cuando el ataque es real (al empezar el windup)
+        if (enemyAnimator != null)
+            enemyAnimator.TriggerAttackAnimation();
 
         Vector3 playerPos = core.GetPlayerPosition();
         Vector3 myPos = transform.position;

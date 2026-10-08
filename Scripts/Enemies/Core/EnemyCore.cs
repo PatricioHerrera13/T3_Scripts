@@ -51,13 +51,13 @@ public class EnemyCore : MonoBehaviour
         SetFacing(startFacingRight);
     }
 
-    private virtual void OnEnable()
+    protected virtual void OnEnable()
     {
         if (health != null)
             health.OnDeath += HandleDeath;
     }
 
-    private virtual void OnDisable()
+    protected virtual void OnDisable()
     {
         if (health != null)
             health.OnDeath -= HandleDeath;

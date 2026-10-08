@@ -98,6 +98,11 @@ public class BossAttackSelector : MonoBehaviour
 
     private void HandleAttackRequested()
     {
+        if (bossCore != null && bossCore.IsTransitioning)
+        {
+            bossCore.FinishAttack();
+            return;
+        }
         if (currentlyEnabledAttacks.Count == 0)
         {
             if (showDebug)

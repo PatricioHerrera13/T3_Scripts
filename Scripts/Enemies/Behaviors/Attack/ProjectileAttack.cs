@@ -5,6 +5,7 @@ public class ProjectileAttack : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private EnemyCore core;
+    [SerializeField] private EnemyAnimator enemyAnimator;
     [SerializeField] private Transform firePoint;
     [SerializeField] private GameObject projectilePrefab;
 
@@ -21,6 +22,7 @@ public class ProjectileAttack : MonoBehaviour
     private void Awake()
     {
         if (core == null) core = GetComponentInParent<EnemyCore>();
+        if (enemyAnimator == null) enemyAnimator = GetComponentInParent<EnemyAnimator>();
     }
 
     private void OnEnable()
@@ -58,7 +60,9 @@ public class ProjectileAttack : MonoBehaviour
         isAttacking = true;
         lastAttackTime = Time.time;
 
-        // Aquí más adelante: animator.SetTrigger("Attack");
+        // Disparamos la animación SOLO cuando el ataque es real
+        if (enemyAnimator != null)
+            enemyAnimator.TriggerAttackAnimation();
 
         if (core != null)
         {

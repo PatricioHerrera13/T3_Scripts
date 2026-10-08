@@ -5,6 +5,7 @@ public class MeleeAttack : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private EnemyCore core;
+    [SerializeField] private EnemyAnimator enemyAnimator;
     [SerializeField] private Transform attackPoint;
     [SerializeField] private LayerMask playerLayer;
 
@@ -23,6 +24,7 @@ public class MeleeAttack : MonoBehaviour
     private void Awake()
     {
         if (core == null) core = GetComponentInParent<EnemyCore>();
+        if (enemyAnimator == null) enemyAnimator = GetComponentInParent<EnemyAnimator>();
     }
 
     private void OnEnable()
@@ -60,12 +62,14 @@ public class MeleeAttack : MonoBehaviour
         isAttacking = true;
         lastAttackTime = Time.time;
 
+        // Disparamos la animación SOLO cuando el ataque es real
+        if (enemyAnimator != null)
+            enemyAnimator.TriggerAttackAnimation();
+
         if (core != null)
         {
             core.FaceTowards(core.GetPlayerPosition());
         }
-
-        // Aquí más adelante: animator.SetTrigger("Attack");
 
         yield return new WaitForSeconds(attackDelay);
 
