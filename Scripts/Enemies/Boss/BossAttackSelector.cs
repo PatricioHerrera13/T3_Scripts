@@ -81,7 +81,6 @@ public class BossAttackSelector : MonoBehaviour
     private void DisableAllAttacks()
     {
         // Buscamos todos los posibles ataques bajo el Boss
-        // (ChargeAttack, ProjectileAttack, MeleeAttack, etc.)
         var allAttacks = GetComponentsInChildren<MonoBehaviour>(true);
 
         foreach (var comp in allAttacks)
@@ -98,11 +97,13 @@ public class BossAttackSelector : MonoBehaviour
 
     private void HandleAttackRequested()
     {
+        // Protección: no atacar durante la transición de fase
         if (bossCore != null && bossCore.IsTransitioning)
         {
             bossCore.FinishAttack();
             return;
         }
+
         if (currentlyEnabledAttacks.Count == 0)
         {
             if (showDebug)
@@ -136,7 +137,6 @@ public class BossAttackSelector : MonoBehaviour
 
     private void TriggerAttack(MonoBehaviour attack)
     {
-        // Llamamos a un método público común que vamos a agregar a los ataques
         if (attack is ChargeAttack charge)
         {
             charge.TriggerAttack();
