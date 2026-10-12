@@ -16,8 +16,14 @@ public class BossSplitHandler : MonoBehaviour
     [Tooltip("Prefab del minion que se va a spawnear (tiene que tener EnemyCore + EnemyHealth)")]
     [SerializeField] private GameObject minionPrefab;
 
-    [Tooltip("Offset de posición de los dos minions respecto al Boss")]
-    [SerializeField] private Vector2 spawnOffset = new Vector2(1.5f, 0f);
+    [Tooltip("Offset horizontal de los dos minions respecto al punto de spawn")]
+    [SerializeField] private float horizontalOffset = 1.5f;
+
+    [Tooltip("Offset vertical extra (positivo = más arriba). Usalo si aparecen bajo el piso.")]
+    [SerializeField] private float verticalOffset = 0.5f;
+
+    [Tooltip("Si está asignado, usa esta Transform como origen del spawn en vez de this.transform")]
+    [SerializeField] private Transform spawnOrigin;
 
     [Header("Minion Health")]
     [Tooltip("Si está activo, divide la vida restante del Boss entre los dos minions")]
@@ -55,16 +61,14 @@ public class BossSplitHandler : MonoBehaviour
 
     private void HandlePhaseChanged(int phaseIndex, BossPhase newPhase)
     {
-        // Solo nos interesa la fase del split y que no se haya hecho todavía
         if (hasSplit) return;
         if (phaseIndex != splitPhaseIndex) return;
 
         if (showDebug)
             Debug.Log($"<color=magenta>[BossSplitHandler]</color> Detectado cambio a Fase {phaseIndex}. Esperando fin de transición...");
 
-        // Esperamos a que termine la transición (usa el transitionDuration de la fase)
         float waitTime = newPhase.transitionDuration;
-        if (waitTime <= 0f) waitTime = 2f; // fallback de seguridad
+        if (waitTime <= 0f) waitTime = 2f;
 
         StartCoroutine(WaitAndSplit(waitTime));
     }
@@ -73,7 +77,7 @@ public class BossSplitHandler : MonoBehaviour
     {
         yield return new WaitForSeconds(delay);
 
-        if (hasSplit) yield break; // por si acaso
+        if (hasSplit) yield break;
 
         PerformSplit();
     }
@@ -88,7 +92,7 @@ public class BossSplitHandler : MonoBehaviour
             return;
         }
 
-        // 1. Calculamos la vida de cada minion
+        // 1. Vida por minion
         int healthPerMinion = fixedMinionHealth;
 
         if (divideRemainingHealth && bossHealth != null)
@@ -100,23 +104,25 @@ public class BossSplitHandler : MonoBehaviour
                 Debug.Log($"<color=magenta>[BossSplitHandler]</color> Vida restante del Boss: {remaining} → {healthPerMinion} por minion");
         }
 
-        // 2. Spawneamos los dos minions
-        Vector3 bossPos = transform.position;
+        // 2. Punto de origen del spawn
+        Vector3 origin = spawnOrigin != null ? spawnOrigin.position : transform.position;
+        origin.y += verticalOffset; // ← corrige el “bajo el piso”
 
-        // Minion izquierda
-        GameObject minionLeft = SpawnMinion(bossPos + (Vector3)(-spawnOffset), healthPerMinion, "BossMinion_L");
-        // Minion derecha
-        GameObject minionRight = SpawnMinion(bossPos + (Vector3)spawnOffset, healthPerMinion, "BossMinion_R");
+        Vector3 leftPos  = origin + new Vector3(-horizontalOffset, 0f, 0f);
+        Vector3 rightPos = origin + new Vector3( horizontalOffset, 0f, 0f);
+
+        GameObject minionLeft  = SpawnMinion(leftPos,  healthPerMinion, "BossMinion_L");
+        GameObject minionRight = SpawnMinion(rightPos, healthPerMinion, "BossMinion_R");
 
         activeMinions.Add(minionLeft);
         activeMinions.Add(minionRight);
         aliveMinions = 2;
 
-        // 3. Desactivamos el Boss original y su LevelComplete
+        // 3. Desactivar Boss original
         DisableOriginalBoss();
 
         if (showDebug)
-            Debug.Log($"<color=magenta>[BossSplitHandler]</color> Split completado. 2 minions activos.");
+            Debug.Log($"<color=magenta>[BossSplitHandler]</color> Split completado. 2 minions activos en Y={origin.y:F2}");
     }
 
     private GameObject SpawnMinion(Vector3 position, int health, string name)
@@ -127,7 +133,6 @@ public class BossSplitHandler : MonoBehaviour
         EnemyHealth minionHealth = minion.GetComponent<EnemyHealth>();
         if (minionHealth != null)
         {
-            // Ahora sí seteamos la vida de forma limpia
             minionHealth.SetMaxHealth(health, true);
             minionHealth.OnDeath += OnMinionDeath;
         }
@@ -148,7 +153,6 @@ public class BossSplitHandler : MonoBehaviour
 
         if (aliveMinions <= 0)
         {
-            // Victoria
             if (showDebug)
                 Debug.Log($"<color=magenta>[BossSplitHandler]</color> Ambos minions derrotados → Level Complete");
 
@@ -161,13 +165,9 @@ public class BossSplitHandler : MonoBehaviour
 
     private void DisableOriginalBoss()
     {
-        // Desactivamos el LevelComplete del Boss original para que no dispare antes
         if (levelCompleteOnDeath != null)
             levelCompleteOnDeath.enabled = false;
 
-        // Desactivamos el GameObject del Boss
-        // Nota: el handler queda desactivado, pero los eventos OnDeath de los minions
-        // siguen pudiendo llamar a OnMinionDeath (Unity permite esto).
         gameObject.SetActive(false);
     }
 }

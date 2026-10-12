@@ -22,12 +22,11 @@ public class BossCore : EnemyCore
             ? phases[CurrentPhaseIndex]
             : null;
 
-    // ========== NUEVO: Sistema de transición ==========
+    // ========== Sistema de transición ==========
     private bool isTransitioning = false;
     public bool IsTransitioning => isTransitioning;
 
     private Coroutine transitionCoroutine;
-
     private EnemyHealth bossHealth;
 
     protected override void Awake()
@@ -45,7 +44,7 @@ public class BossCore : EnemyCore
 
     protected override void OnEnable()
     {
-        base.OnEnable();   // ← importante: suscribe el OnDeath del EnemyCore
+        base.OnEnable();
 
         if (bossHealth != null)
             bossHealth.OnHealthChanged += HandleHealthChanged;
@@ -53,12 +52,11 @@ public class BossCore : EnemyCore
 
     protected override void OnDisable()
     {
-        base.OnDisable();  // ← importante: desuscribe el OnDeath
+        base.OnDisable();
 
         if (bossHealth != null)
             bossHealth.OnHealthChanged -= HandleHealthChanged;
 
-        // Limpiamos la coroutine si se desactiva
         if (transitionCoroutine != null)
         {
             StopCoroutine(transitionCoroutine);
@@ -111,9 +109,7 @@ public class BossCore : EnemyCore
                       $"(Index {newIndex} | {newPhase.healthThreshold:P0})");
         }
 
-        // Iniciamos la transición (bloquea ataques)
         StartPhaseTransition(newPhase);
-
         OnPhaseChanged?.Invoke(newIndex, newPhase);
     }
 
@@ -121,7 +117,6 @@ public class BossCore : EnemyCore
 
     private void StartPhaseTransition(BossPhase phase)
     {
-        // Cancelamos cualquier transición anterior
         if (transitionCoroutine != null)
         {
             StopCoroutine(transitionCoroutine);
@@ -129,9 +124,6 @@ public class BossCore : EnemyCore
         }
 
         float duration = phase.transitionDuration;
-
-        // Si no pusiste duración en el Inspector, usamos un valor por defecto
-        // Ajustá este número según la duración real de tu animación F1_PhaseChange
         if (duration <= 0f)
             duration = 1.4f;
 
@@ -142,13 +134,11 @@ public class BossCore : EnemyCore
     {
         isTransitioning = true;
 
-        // Si estaba atacando, lo sacamos del estado Attack
         if (CurrentState == EnemyState.Attack)
         {
             FinishAttack();
         }
 
-        // Forzamos Idle para que se quede quieto durante la animación
         ChangeState(EnemyState.Idle);
 
         if (showPhaseDebug)
@@ -163,10 +153,9 @@ public class BossCore : EnemyCore
             Debug.Log($"<color=magenta>{gameObject.name}</color> → Transición terminada. Ya puede moverse y atacar.");
     }
 
-    // ==================== BLOQUEO DE ATAQUE DURANTE TRANSICIÓN ====================
+    // ==================== BLOQUEO DE ATAQUE (ahora con override real) ====================
 
-    // Usamos 'new' porque ChangeState no es virtual en EnemyCore
-    public new void ChangeState(EnemyState newState)
+    public override void ChangeState(EnemyState newState)
     {
         // Mientras está en transición, no dejamos entrar a Attack
         if (isTransitioning && newState == EnemyState.Attack)
@@ -179,9 +168,6 @@ public class BossCore : EnemyCore
 
     // ==================== API PÚBLICA ====================
 
-    /// <summary>
-    /// Fuerza el cambio a una fase específica (útil para testing y secuencias especiales).
-    /// </summary>
     public void ForcePhase(int index)
     {
         if (index < 0 || index >= phases.Count)

@@ -97,7 +97,11 @@ public class EnemyCore : MonoBehaviour
             case EnemyState.Attack:
                 if (stateTimer >= attackDuration)
                 {
-                    ChangeState(EnemyState.Chase);
+                    // Fallback de seguridad: si el behavior no llamó FinishAttack a tiempo
+                    if (IsPlayerDetected())
+                        ChangeState(EnemyState.Chase);
+                    else
+                        ChangeState(EnemyState.Patrol);
                 }
                 break;
 
@@ -113,7 +117,10 @@ public class EnemyCore : MonoBehaviour
         }
     }
 
-    public void ChangeState(EnemyState newState)
+    /// <summary>
+    /// Virtual para que BossCore pueda bloquear Attack durante transición de fase.
+    /// </summary>
+    public virtual void ChangeState(EnemyState newState)
     {
         if (CurrentState == newState) return;
         if (CurrentState == EnemyState.Death) return;
