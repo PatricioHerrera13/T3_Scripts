@@ -124,20 +124,16 @@ public class BossSplitHandler : MonoBehaviour
         GameObject minion = Instantiate(minionPrefab, position, Quaternion.identity);
         minion.name = name;
 
-        // Seteamos la vida
         EnemyHealth minionHealth = minion.GetComponent<EnemyHealth>();
         if (minionHealth != null)
         {
-            // Como EnemyHealth no tiene un SetMaxHealth público todavía,
-            // usamos una forma segura (la mejoramos después si hace falta)
-            // Por ahora asumimos que el prefab ya tiene la vida configurada
-            // o que vamos a agregar un método SetHealth más adelante.
-        }
-
-        // Nos suscribimos a la muerte del minion
-        if (minionHealth != null)
-        {
+            // Ahora sí seteamos la vida de forma limpia
+            minionHealth.SetMaxHealth(health, true);
             minionHealth.OnDeath += OnMinionDeath;
+        }
+        else
+        {
+            Debug.LogWarning($"[BossSplitHandler] El minion {name} no tiene EnemyHealth!", minion);
         }
 
         return minion;
@@ -169,11 +165,9 @@ public class BossSplitHandler : MonoBehaviour
         if (levelCompleteOnDeath != null)
             levelCompleteOnDeath.enabled = false;
 
-        // Desactivamos el GameObject del Boss (o solo los componentes si preferís)
-        // Opción A (recomendada): desactivar todo el objeto
+        // Desactivamos el GameObject del Boss
+        // Nota: el handler queda desactivado, pero los eventos OnDeath de los minions
+        // siguen pudiendo llamar a OnMinionDeath (Unity permite esto).
         gameObject.SetActive(false);
-
-        // Si preferís solo desactivar comportamientos y dejar el sprite visible un momento,
-        // se puede hacer más elaborado después.
     }
 }

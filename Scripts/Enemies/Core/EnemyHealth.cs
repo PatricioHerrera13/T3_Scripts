@@ -137,4 +137,30 @@ public class EnemyHealth : MonoBehaviour, IDamageable
     public int GetMaxHealth() => maxHealth;
     public bool IsDead() => isDead;
     public bool IsInvulnerable() => isInvulnerable;
+
+    /// <summary>
+    /// Establece la vida máxima y actual. Útil para minions del Boss o spawns dinámicos.
+    /// </summary>
+    public void SetMaxHealth(int newMaxHealth, bool resetCurrent = true)
+    {
+        maxHealth = Mathf.Max(1, newMaxHealth);
+        if (resetCurrent)
+            currentHealth = maxHealth;
+        else
+            currentHealth = Mathf.Min(currentHealth, maxHealth);
+
+        OnHealthChanged?.Invoke(currentHealth, maxHealth);
+    }
+
+    /// <summary>
+    /// Establece solo la vida actual (sin cambiar el máximo).
+    /// </summary>
+    public void SetCurrentHealth(int health)
+    {
+        currentHealth = Mathf.Clamp(health, 0, maxHealth);
+        OnHealthChanged?.Invoke(currentHealth, maxHealth);
+
+        if (currentHealth <= 0 && !isDead)
+            Die();
+    }
 }
