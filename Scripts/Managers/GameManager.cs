@@ -8,6 +8,7 @@ public class GameManager : MonoBehaviour
     [Header("Scene Names")]
     public string mainMenuScene = "MainMenu";
     public string loadingScene = "Loading";
+    public string tutorialScene = "Tutorial";          // ← NUEVO
     public string level01Scene = "Level_01";
     public string level02Scene = "Level_02";
     public string level03Scene = "Level_03";
@@ -16,7 +17,7 @@ public class GameManager : MonoBehaviour
     public string endingScene = "Ending";
 
     private string sceneToLoad;
-    private string lastCompletedLevel;   // ← importante: recuerda de qué nivel venimos
+    private string lastCompletedLevel;
 
     private void Awake()
     {
@@ -48,23 +49,26 @@ public class GameManager : MonoBehaviour
 
     public void StartGame()
     {
-        sceneToLoad = level01Scene;
+        // Primero va al Tutorial
+        sceneToLoad = tutorialScene;
         SceneManager.LoadScene(loadingScene);
     }
 
     /// <summary>
-    /// Llamar desde GoalZone o desde la muerte del Boss.
-    /// Guarda el nivel actual y va a la pantalla de LevelComplete.
+    /// Llamado desde la escena Tutorial cuando termina el timer.
     /// </summary>
+    public void FinishTutorial()
+    {
+        sceneToLoad = level01Scene;
+        SceneManager.LoadScene(loadingScene);
+    }
+
     public void CompleteCurrentLevel()
     {
         lastCompletedLevel = SceneManager.GetActiveScene().name;
         SceneManager.LoadScene(levelCompleteScene);
     }
 
-    /// <summary>
-    /// Llamar desde el botón "Continuar" de la escena LevelComplete.
-    /// </summary>
     public void LoadNextLevel()
     {
         if (lastCompletedLevel == level01Scene)
@@ -79,12 +83,10 @@ public class GameManager : MonoBehaviour
         }
         else if (lastCompletedLevel == level03Scene)
         {
-            // Victoria final → Ending
             SceneManager.LoadScene(endingScene);
         }
         else
         {
-            // Fallback de seguridad
             Debug.LogWarning("LoadNextLevel: lastCompletedLevel desconocido → MainMenu");
             LoadMainMenu();
         }
@@ -101,7 +103,6 @@ public class GameManager : MonoBehaviour
         SceneManager.LoadScene(gameOverScene);
     }
 
-    // Ya no se usa directamente (ahora usamos CompleteCurrentLevel)
     public void LoadLevelComplete()
     {
         CompleteCurrentLevel();
