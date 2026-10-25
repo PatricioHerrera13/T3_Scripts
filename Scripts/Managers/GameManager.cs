@@ -172,13 +172,11 @@ public class GameManager : MonoBehaviour
         // Descargar nivel actual
         yield return UnloadLevelPair(currentLevelBaseName);
 
-        // Restaurar vida completa
+        // Restaurar vida completa + estado
         if (PlayerHealth != null)
         {
             PlayerHealth.FullHeal();
-
-            // Resetear estado de muerte
-            // (lo haremos más limpio en el siguiente paso en PlayerHealth)
+            PlayerHealth.ResetDeathState();   // ← esta línea es la importante
         }
 
         // Volver a cargar el mismo nivel

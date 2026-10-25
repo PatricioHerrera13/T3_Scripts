@@ -24,7 +24,6 @@ public class PlayerHealth : MonoBehaviour, IDamageable
     private Animator animator;
     private Rigidbody2D rb;
 
-    // Esto es lo importante para el movimiento
     public bool IsInKnockback { get; private set; }
 
     public System.Action<int, int> OnHealthChanged;
@@ -48,13 +47,11 @@ public class PlayerHealth : MonoBehaviour, IDamageable
         OnHealthChanged?.Invoke(currentHealth, maxHealth);
     }
 
-    // Versión básica (cumple la interfaz)
     public void TakeDamage(int damage)
     {
         TakeDamage(damage, Vector2.zero);
     }
 
-    // Versión con knockback
     public void TakeDamage(int damage, Vector2 knockbackDirection)
     {
         if (isInvulnerable || isDead) return;
@@ -70,7 +67,6 @@ public class PlayerHealth : MonoBehaviour, IDamageable
             return;
         }
 
-        // Aplicar knockback si hay dirección
         if (knockbackDirection != Vector2.zero && rb != null)
         {
             StartCoroutine(ApplyKnockback(knockbackDirection.normalized));
@@ -83,12 +79,10 @@ public class PlayerHealth : MonoBehaviour, IDamageable
     {
         IsInKnockback = true;
 
-        // Aplicamos la fuerza + un pequeño impulso vertical
         rb.linearVelocity = new Vector2(direction.x * knockbackForce, rb.linearVelocity.y + 2.5f);
 
         yield return new WaitForSeconds(knockbackDuration);
 
-        // Suavizamos la velocidad horizontal
         if (rb != null)
         {
             rb.linearVelocity = new Vector2(rb.linearVelocity.x * 0.35f, rb.linearVelocity.y);
@@ -129,31 +123,33 @@ public class PlayerHealth : MonoBehaviour, IDamageable
 
         OnPlayerDied?.Invoke();
 
+        // Deshabilitar controles mientras se reinicia el nivel
         var movement = GetComponent<PlayerMovement>();
         var combat = GetComponent<PlayerCombat>();
 
         if (movement != null) movement.enabled = false;
         if (combat != null) combat.enabled = false;
 
-        StartCoroutine(GoToGameOverAfterDelay(0.8f));
+        // Pequeño delay para que se vea la muerte
+        StartCoroutine(RestartLevelAfterDelay(0.8f));
     }
 
-    private IEnumerator GoToGameOverAfterDelay(float delay)
+    private IEnumerator RestartLevelAfterDelay(float delay)
     {
         yield return new WaitForSeconds(delay);
 
         if (GameManager.Instance != null)
         {
-            GameManager.Instance.LoadGameOver();
+            GameManager.Instance.RestartCurrentLevel();
         }
         else
         {
-            Debug.LogWarning("GameManager no encontrado. Cargando GameOver directamente.");
-            UnityEngine.SceneManagement.SceneManager.LoadScene("GameOver");
+            Debug.LogError("GameManager.Instance es null. No se puede reiniciar el nivel.");
         }
     }
 
-    // --- Métodos públicos útiles ---
+    // ==================== API PÚBLICA ====================
+
     public void Heal(int amount)
     {
         if (isDead) return;
@@ -165,7 +161,28 @@ public class PlayerHealth : MonoBehaviour, IDamageable
 
     public void FullHeal()
     {
-        Heal(maxHealth);
+        currentHealth = maxHealth;
+        OnHealthChanged?.Invoke(currentHealth, maxHealth);
+    }
+
+    /// <summary>
+    /// Resetea el estado de muerte y re-habilita Movement/Combat.
+    /// Llamado por GameManager al reiniciar el nivel.
+    /// </summary>
+    public void ResetDeathState()
+    {
+        isDead = false;
+        isInvulnerable = false;
+        IsInKnockback = false;
+
+        var movement = GetComponent<PlayerMovement>();
+        var combat = GetComponent<PlayerCombat>();
+
+        if (movement != null) movement.enabled = true;
+        if (combat != null) combat.enabled = true;
+
+        if (spriteRenderer != null)
+            spriteRenderer.color = originalColor;
     }
 
     public int GetCurrentHealth() => currentHealth;
