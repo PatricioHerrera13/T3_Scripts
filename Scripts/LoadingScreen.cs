@@ -1,9 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>
-/// Versión temporal. El flujo Additive ya no usa esta pantalla.
-/// </summary>
 public class LoadingScreen : MonoBehaviour
 {
     [Header("UI (opcional)")]

@@ -78,15 +78,11 @@ public class PlayerHealth : MonoBehaviour, IDamageable
     private IEnumerator ApplyKnockback(Vector2 direction)
     {
         IsInKnockback = true;
-
         rb.linearVelocity = new Vector2(direction.x * knockbackForce, rb.linearVelocity.y + 2.5f);
-
         yield return new WaitForSeconds(knockbackDuration);
 
         if (rb != null)
-        {
             rb.linearVelocity = new Vector2(rb.linearVelocity.x * 0.35f, rb.linearVelocity.y);
-        }
 
         IsInKnockback = false;
     }
@@ -94,7 +90,6 @@ public class PlayerHealth : MonoBehaviour, IDamageable
     private IEnumerator InvulnerabilityCoroutine()
     {
         isInvulnerable = true;
-
         float timer = 0f;
         bool flash = false;
 
@@ -105,7 +100,6 @@ public class PlayerHealth : MonoBehaviour, IDamageable
                 spriteRenderer.color = flash ? flashColor : originalColor;
                 flash = !flash;
             }
-
             yield return new WaitForSeconds(flashInterval);
             timer += flashInterval;
         }
@@ -123,14 +117,12 @@ public class PlayerHealth : MonoBehaviour, IDamageable
 
         OnPlayerDied?.Invoke();
 
-        // Deshabilitar controles mientras se reinicia el nivel
         var movement = GetComponent<PlayerMovement>();
         var combat = GetComponent<PlayerCombat>();
 
         if (movement != null) movement.enabled = false;
         if (combat != null) combat.enabled = false;
 
-        // Pequeño delay para que se vea la muerte
         StartCoroutine(RestartLevelAfterDelay(0.8f));
     }
 
@@ -148,12 +140,9 @@ public class PlayerHealth : MonoBehaviour, IDamageable
         }
     }
 
-    // ==================== API PÚBLICA ====================
-
     public void Heal(int amount)
     {
         if (isDead) return;
-
         currentHealth += amount;
         currentHealth = Mathf.Min(currentHealth, maxHealth);
         OnHealthChanged?.Invoke(currentHealth, maxHealth);
@@ -165,10 +154,6 @@ public class PlayerHealth : MonoBehaviour, IDamageable
         OnHealthChanged?.Invoke(currentHealth, maxHealth);
     }
 
-    /// <summary>
-    /// Resetea el estado de muerte y re-habilita Movement/Combat.
-    /// Llamado por GameManager al reiniciar el nivel.
-    /// </summary>
     public void ResetDeathState()
     {
         isDead = false;
