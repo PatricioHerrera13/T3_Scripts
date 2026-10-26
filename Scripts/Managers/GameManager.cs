@@ -7,8 +7,8 @@ public class GameManager : MonoBehaviour
     public static GameManager Instance;
 
     [Header("Player Reference")]
-    public PlayerMovement Player;               // Se asigna en Core o se busca automáticamente
-    public PlayerHealth PlayerHealth;           // Referencia rápida
+    public PlayerMovement Player;
+    public PlayerHealth PlayerHealth;
 
     [Header("Scene Names - Flow")]
     public string mainMenuScene = "MainMenu";
@@ -31,8 +31,7 @@ public class GameManager : MonoBehaviour
         if (Instance == null)
         {
             Instance = this;
-            // Ya no necesitamos DontDestroyOnLoad porque vivirá en Core
-            // DontDestroyOnLoad(gameObject); 
+            // Ya no usamos DontDestroyOnLoad porque vive en Core
         }
         else
         {
@@ -48,26 +47,7 @@ public class GameManager : MonoBehaviour
             PlayerHealth = Player.GetComponent<PlayerHealth>();
     }
 
-    private void Start()
-    {
-        // Si arrancamos desde Boot, cargamos Core y luego MainMenu
-        if (SceneManager.GetActiveScene().name == "Boot")
-        {
-            StartCoroutine(BootSequence());
-        }
-    }
-
     // ==================== FLUJO PRINCIPAL ====================
-
-    private IEnumerator BootSequence()
-    {
-        // Cargar Core (persistente)
-        yield return SceneManager.LoadSceneAsync("Core", LoadSceneMode.Additive);
-        SceneManager.SetActiveScene(SceneManager.GetSceneByName("Core"));
-
-        // Ahora sí cargar MainMenu
-        yield return SceneManager.LoadSceneAsync(mainMenuScene, LoadSceneMode.Additive);
-    }
 
     public void StartGame()
     {
@@ -79,10 +59,8 @@ public class GameManager : MonoBehaviour
     {
         isLoading = true;
 
-        // Descargar MainMenu si está cargado
         yield return UnloadSceneIfLoaded(mainMenuScene);
 
-        // Cargar Tutorial
         yield return SceneManager.LoadSceneAsync(tutorialScene, LoadSceneMode.Additive);
         SceneManager.SetActiveScene(SceneManager.GetSceneByName(tutorialScene));
 
@@ -101,7 +79,6 @@ public class GameManager : MonoBehaviour
 
         yield return UnloadSceneIfLoaded(tutorialScene);
 
-        // Cargar primer nivel
         currentLevelIndex = 0;
         currentLevelBaseName = levelOrder[0];
         yield return LoadLevelPair(currentLevelBaseName);
@@ -119,11 +96,9 @@ public class GameManager : MonoBehaviour
     {
         isLoading = true;
 
-        // Descargar el nivel actual
         if (!string.IsNullOrEmpty(currentLevelBaseName))
             yield return UnloadLevelPair(currentLevelBaseName);
 
-        // Cargar pantalla de LevelComplete
         yield return SceneManager.LoadSceneAsync(levelCompleteScene, LoadSceneMode.Additive);
         SceneManager.SetActiveScene(SceneManager.GetSceneByName(levelCompleteScene));
 
@@ -146,7 +121,6 @@ public class GameManager : MonoBehaviour
 
         if (currentLevelIndex >= levelOrder.Length)
         {
-            // Terminó el juego
             yield return SceneManager.LoadSceneAsync(endingScene, LoadSceneMode.Additive);
             SceneManager.SetActiveScene(SceneManager.GetSceneByName(endingScene));
         }
@@ -169,17 +143,14 @@ public class GameManager : MonoBehaviour
     {
         isLoading = true;
 
-        // Descargar nivel actual
         yield return UnloadLevelPair(currentLevelBaseName);
 
-        // Restaurar vida completa + estado
         if (PlayerHealth != null)
         {
             PlayerHealth.FullHeal();
-            PlayerHealth.ResetDeathState();   // ← esta línea es la importante
+            PlayerHealth.ResetDeathState();
         }
 
-        // Volver a cargar el mismo nivel
         yield return LoadLevelPair(currentLevelBaseName);
 
         isLoading = false;
@@ -195,7 +166,6 @@ public class GameManager : MonoBehaviour
     {
         isLoading = true;
 
-        // Descargar todo excepto Core
         yield return UnloadAllExceptCore();
 
         yield return SceneManager.LoadSceneAsync(mainMenuScene, LoadSceneMode.Additive);
@@ -211,18 +181,13 @@ public class GameManager : MonoBehaviour
         string logicName = baseName + "_Logic";
         string artName = baseName + "_Art";
 
-        // Cargar Logic
         yield return SceneManager.LoadSceneAsync(logicName, LoadSceneMode.Additive);
-
-        // Cargar Art
         yield return SceneManager.LoadSceneAsync(artName, LoadSceneMode.Additive);
 
-        // Poner la de Logic como activa
         Scene logicScene = SceneManager.GetSceneByName(logicName);
         if (logicScene.IsValid())
             SceneManager.SetActiveScene(logicScene);
 
-        // Posicionar al Player
         PlacePlayerAtSpawn();
     }
 
@@ -275,7 +240,7 @@ public class GameManager : MonoBehaviour
 
     public void LoadGameOver()
     {
-        // Por ahora lo dejamos, pero el flujo principal usa RestartCurrentLevel
+        // Por ahora lo dejamos, aunque el flujo principal usa RestartCurrentLevel
         SceneManager.LoadScene(gameOverScene);
     }
 }
