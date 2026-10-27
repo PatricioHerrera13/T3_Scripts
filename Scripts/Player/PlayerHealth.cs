@@ -154,6 +154,13 @@ public class PlayerHealth : MonoBehaviour, IDamageable
         OnHealthChanged?.Invoke(currentHealth, maxHealth);
     }
 
+    // Nuevo método: setea la vida a un valor específico
+    public void SetHealth(int health)
+    {
+        currentHealth = Mathf.Clamp(health, 0, maxHealth);
+        OnHealthChanged?.Invoke(currentHealth, maxHealth);
+    }
+
     public void ResetDeathState()
     {
         isDead = false;

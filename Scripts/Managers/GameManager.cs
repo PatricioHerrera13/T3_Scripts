@@ -12,10 +12,8 @@ public class GameManager : MonoBehaviour
 
     [Header("Scene Names - Flow")]
     public string mainMenuScene = "MainMenu";
-    public string loadingScene = "Loading";
     public string tutorialScene = "Tutorial";
     public string levelCompleteScene = "LevelComplete";
-    public string gameOverScene = "GameOver";
     public string endingScene = "Ending";
 
     [Header("Level Order (base names)")]
@@ -26,12 +24,14 @@ public class GameManager : MonoBehaviour
     private string currentLevelBaseName;
     private bool isLoading = false;
 
+    // Vida con la que se empezó el nivel actual
+    private int levelStartHealth = 3;
+
     private void Awake()
     {
         if (Instance == null)
         {
             Instance = this;
-            // Ya no usamos DontDestroyOnLoad porque vive en Core
         }
         else
         {
@@ -39,7 +39,6 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        // Buscar referencias del Player si no están asignadas
         if (Player == null)
             Player = FindFirstObjectByType<PlayerMovement>();
 
@@ -61,6 +60,7 @@ public class GameManager : MonoBehaviour
 
         yield return UnloadSceneIfLoaded(mainMenuScene);
 
+        // Cargar Tutorial
         yield return SceneManager.LoadSceneAsync(tutorialScene, LoadSceneMode.Additive);
         SceneManager.SetActiveScene(SceneManager.GetSceneByName(tutorialScene));
 
@@ -133,6 +133,8 @@ public class GameManager : MonoBehaviour
         isLoading = false;
     }
 
+    // Reinicio de nivel (muerte o botón del menú de pausa)
+    // Restaura la vida que tenía al empezar el nivel
     public void RestartCurrentLevel()
     {
         if (isLoading || string.IsNullOrEmpty(currentLevelBaseName)) return;
@@ -143,11 +145,16 @@ public class GameManager : MonoBehaviour
     {
         isLoading = true;
 
+        // Cerrar menú de pausa si está abierto
+        if (PauseMenu.Instance != null)
+            PauseMenu.Instance.ClosePauseMenuImmediate();
+
         yield return UnloadLevelPair(currentLevelBaseName);
 
+        // Restaurar vida con la que se empezó el nivel + estado
         if (PlayerHealth != null)
         {
-            PlayerHealth.FullHeal();
+            PlayerHealth.SetHealth(levelStartHealth);
             PlayerHealth.ResetDeathState();
         }
 
@@ -156,6 +163,7 @@ public class GameManager : MonoBehaviour
         isLoading = false;
     }
 
+    // Volver al menú principal = reinicio completo del juego
     public void ReturnToMainMenu()
     {
         if (isLoading) return;
@@ -166,7 +174,23 @@ public class GameManager : MonoBehaviour
     {
         isLoading = true;
 
+        // Cerrar menú de pausa si está abierto
+        if (PauseMenu.Instance != null)
+            PauseMenu.Instance.ClosePauseMenuImmediate();
+
+        // Descargar todo excepto Core
         yield return UnloadAllExceptCore();
+
+        // Resetear progreso
+        currentLevelIndex = -1;
+        currentLevelBaseName = null;
+
+        // Restaurar vida completa al volver al menú
+        if (PlayerHealth != null)
+        {
+            PlayerHealth.FullHeal();
+            PlayerHealth.ResetDeathState();
+        }
 
         yield return SceneManager.LoadSceneAsync(mainMenuScene, LoadSceneMode.Additive);
         SceneManager.SetActiveScene(SceneManager.GetSceneByName(mainMenuScene));
@@ -187,6 +211,12 @@ public class GameManager : MonoBehaviour
         Scene logicScene = SceneManager.GetSceneByName(logicName);
         if (logicScene.IsValid())
             SceneManager.SetActiveScene(logicScene);
+
+        // Guardar la vida con la que se empieza este nivel
+        if (PlayerHealth != null)
+        {
+            levelStartHealth = PlayerHealth.GetCurrentHealth();
+        }
 
         PlacePlayerAtSpawn();
     }
@@ -211,13 +241,21 @@ public class GameManager : MonoBehaviour
 
     private IEnumerator UnloadAllExceptCore()
     {
+        // Hacemos una copia de los nombres porque no se puede modificar mientras iteramos
+        var scenesToUnload = new System.Collections.Generic.List<string>();
+
         for (int i = 0; i < SceneManager.sceneCount; i++)
         {
             Scene scene = SceneManager.GetSceneAt(i);
             if (scene.name != "Core" && scene.name != "Boot")
             {
-                yield return SceneManager.UnloadSceneAsync(scene);
+                scenesToUnload.Add(scene.name);
             }
+        }
+
+        foreach (string sceneName in scenesToUnload)
+        {
+            yield return UnloadSceneIfLoaded(sceneName);
         }
     }
 
@@ -234,13 +272,5 @@ public class GameManager : MonoBehaviour
         {
             Debug.LogWarning("No se encontró LevelEntryPoint en el nivel actual.");
         }
-    }
-
-    // ==================== HELPERS ====================
-
-    public void LoadGameOver()
-    {
-        // Por ahora lo dejamos, aunque el flujo principal usa RestartCurrentLevel
-        SceneManager.LoadScene(gameOverScene);
     }
 }
