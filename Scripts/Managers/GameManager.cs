@@ -9,6 +9,8 @@ public class GameManager : MonoBehaviour
     [Header("Player Reference")]
     public PlayerMovement Player;
     public PlayerHealth PlayerHealth;
+    public GameObject PlayerGameObject;      // El GameObject completo del Player
+    public GameObject GameplayHUD;           // El Canvas de la barra de vida
 
     [Header("Scene Names - Flow")]
     public string mainMenuScene = "MainMenu";
@@ -39,11 +41,35 @@ public class GameManager : MonoBehaviour
             return;
         }
 
+        // Buscar referencias si no están asignadas
         if (Player == null)
-            Player = FindFirstObjectByType<PlayerMovement>();
+            Player = FindFirstObjectByType<PlayerMovement>(FindObjectsInactive.Include);
 
         if (PlayerHealth == null && Player != null)
             PlayerHealth = Player.GetComponent<PlayerHealth>();
+
+        if (PlayerGameObject == null && Player != null)
+            PlayerGameObject = Player.gameObject;
+    }
+
+    // ==================== ACTIVAR / DESACTIVAR PLAYER + HUD ====================
+
+    public void ActivatePlayerAndHUD()
+    {
+        if (PlayerGameObject != null)
+            PlayerGameObject.SetActive(true);
+
+        if (GameplayHUD != null)
+            GameplayHUD.SetActive(true);
+    }
+
+    public void DeactivatePlayerAndHUD()
+    {
+        if (PlayerGameObject != null)
+            PlayerGameObject.SetActive(false);
+
+        if (GameplayHUD != null)
+            GameplayHUD.SetActive(false);
     }
 
     // ==================== FLUJO PRINCIPAL ====================
@@ -58,11 +84,23 @@ public class GameManager : MonoBehaviour
     {
         isLoading = true;
 
+        // 1. Tapar pantalla
+        if (ScreenFader.Instance != null)
+            yield return ScreenFader.Instance.FadeOut();
+
+        // 2. Descargar menú
         yield return UnloadSceneIfLoaded(mainMenuScene);
 
-        // Cargar Tutorial
+        // 3. Cargar Tutorial
         yield return SceneManager.LoadSceneAsync(tutorialScene, LoadSceneMode.Additive);
         SceneManager.SetActiveScene(SceneManager.GetSceneByName(tutorialScene));
+
+        // 4. Activar Player + HUD (si el tutorial lo necesita)
+        ActivatePlayerAndHUD();
+
+        // 5. Revelar pantalla
+        if (ScreenFader.Instance != null)
+            yield return ScreenFader.Instance.FadeIn();
 
         isLoading = false;
     }
@@ -77,11 +115,17 @@ public class GameManager : MonoBehaviour
     {
         isLoading = true;
 
+        if (ScreenFader.Instance != null)
+            yield return ScreenFader.Instance.FadeOut();
+
         yield return UnloadSceneIfLoaded(tutorialScene);
 
         currentLevelIndex = 0;
         currentLevelBaseName = levelOrder[0];
         yield return LoadLevelPair(currentLevelBaseName);
+
+        if (ScreenFader.Instance != null)
+            yield return ScreenFader.Instance.FadeIn();
 
         isLoading = false;
     }
@@ -96,11 +140,20 @@ public class GameManager : MonoBehaviour
     {
         isLoading = true;
 
+        if (ScreenFader.Instance != null)
+            yield return ScreenFader.Instance.FadeOut();
+
         if (!string.IsNullOrEmpty(currentLevelBaseName))
             yield return UnloadLevelPair(currentLevelBaseName);
 
         yield return SceneManager.LoadSceneAsync(levelCompleteScene, LoadSceneMode.Additive);
         SceneManager.SetActiveScene(SceneManager.GetSceneByName(levelCompleteScene));
+
+        // En LevelComplete normalmente no queremos al Player visible
+        DeactivatePlayerAndHUD();
+
+        if (ScreenFader.Instance != null)
+            yield return ScreenFader.Instance.FadeIn();
 
         isLoading = false;
     }
@@ -115,14 +168,19 @@ public class GameManager : MonoBehaviour
     {
         isLoading = true;
 
+        if (ScreenFader.Instance != null)
+            yield return ScreenFader.Instance.FadeOut();
+
         yield return UnloadSceneIfLoaded(levelCompleteScene);
 
         currentLevelIndex++;
 
         if (currentLevelIndex >= levelOrder.Length)
         {
+            // Ir al Ending
             yield return SceneManager.LoadSceneAsync(endingScene, LoadSceneMode.Additive);
             SceneManager.SetActiveScene(SceneManager.GetSceneByName(endingScene));
+            DeactivatePlayerAndHUD();
         }
         else
         {
@@ -130,11 +188,13 @@ public class GameManager : MonoBehaviour
             yield return LoadLevelPair(currentLevelBaseName);
         }
 
+        if (ScreenFader.Instance != null)
+            yield return ScreenFader.Instance.FadeIn();
+
         isLoading = false;
     }
 
     // Reinicio de nivel (muerte o botón del menú de pausa)
-    // Restaura la vida que tenía al empezar el nivel
     public void RestartCurrentLevel()
     {
         if (isLoading || string.IsNullOrEmpty(currentLevelBaseName)) return;
@@ -149,6 +209,9 @@ public class GameManager : MonoBehaviour
         if (PauseMenu.Instance != null)
             PauseMenu.Instance.ClosePauseMenuImmediate();
 
+        if (ScreenFader.Instance != null)
+            yield return ScreenFader.Instance.FadeOut();
+
         yield return UnloadLevelPair(currentLevelBaseName);
 
         // Restaurar vida con la que se empezó el nivel + estado
@@ -159,6 +222,9 @@ public class GameManager : MonoBehaviour
         }
 
         yield return LoadLevelPair(currentLevelBaseName);
+
+        if (ScreenFader.Instance != null)
+            yield return ScreenFader.Instance.FadeIn();
 
         isLoading = false;
     }
@@ -174,9 +240,11 @@ public class GameManager : MonoBehaviour
     {
         isLoading = true;
 
-        // Cerrar menú de pausa si está abierto
         if (PauseMenu.Instance != null)
             PauseMenu.Instance.ClosePauseMenuImmediate();
+
+        if (ScreenFader.Instance != null)
+            yield return ScreenFader.Instance.FadeOut();
 
         // Descargar todo excepto Core
         yield return UnloadAllExceptCore();
@@ -185,7 +253,9 @@ public class GameManager : MonoBehaviour
         currentLevelIndex = -1;
         currentLevelBaseName = null;
 
-        // Restaurar vida completa al volver al menú
+        // Apagar Player + HUD y restaurar vida
+        DeactivatePlayerAndHUD();
+
         if (PlayerHealth != null)
         {
             PlayerHealth.FullHeal();
@@ -194,6 +264,9 @@ public class GameManager : MonoBehaviour
 
         yield return SceneManager.LoadSceneAsync(mainMenuScene, LoadSceneMode.Additive);
         SceneManager.SetActiveScene(SceneManager.GetSceneByName(mainMenuScene));
+
+        if (ScreenFader.Instance != null)
+            yield return ScreenFader.Instance.FadeIn();
 
         isLoading = false;
     }
@@ -218,7 +291,11 @@ public class GameManager : MonoBehaviour
             levelStartHealth = PlayerHealth.GetCurrentHealth();
         }
 
+        // Posicionar al Player (todavía puede estar apagado)
         PlacePlayerAtSpawn();
+
+        // Activar Player + HUD
+        ActivatePlayerAndHUD();
     }
 
     private IEnumerator UnloadLevelPair(string baseName)
@@ -241,7 +318,6 @@ public class GameManager : MonoBehaviour
 
     private IEnumerator UnloadAllExceptCore()
     {
-        // Hacemos una copia de los nombres porque no se puede modificar mientras iteramos
         var scenesToUnload = new System.Collections.Generic.List<string>();
 
         for (int i = 0; i < SceneManager.sceneCount; i++)
