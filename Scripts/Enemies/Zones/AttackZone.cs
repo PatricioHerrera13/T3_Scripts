@@ -13,6 +13,17 @@ public class AttackZone : MonoBehaviour
 
     private void Start()
     {
+        TryFindPlayer();
+    }
+
+    private void TryFindPlayer()
+    {
+        if (GameManager.Instance != null && GameManager.Instance.Player != null)
+        {
+            player = GameManager.Instance.Player.transform;
+            return;
+        }
+
         GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
         if (playerObj != null)
             player = playerObj.transform;
@@ -20,7 +31,11 @@ public class AttackZone : MonoBehaviour
 
     public bool IsPlayerInAttackRange()
     {
-        if (player == null) return false;
+        if (player == null)
+        {
+            TryFindPlayer();
+            if (player == null) return false;
+        }
 
         float distance = Vector2.Distance(transform.position, player.position);
         return distance <= attackRadius;

@@ -91,14 +91,15 @@ public class GameManager : MonoBehaviour
         // 2. Descargar menú
         yield return UnloadSceneIfLoaded(mainMenuScene);
 
-        // 3. Cargar Tutorial
+        // 3. Cargar Tutorial (solo imagen de controles)
         yield return SceneManager.LoadSceneAsync(tutorialScene, LoadSceneMode.Additive);
         SceneManager.SetActiveScene(SceneManager.GetSceneByName(tutorialScene));
 
-        // 4. Activar Player + HUD (si el tutorial lo necesita)
-        ActivatePlayerAndHUD();
+        // IMPORTANTE: NO activamos Player ni HUD aquí.
+        // El Tutorial es solo una imagen/gif de controles.
+        // El Player aparece recién cuando se carga el Level_01.
 
-        // 5. Revelar pantalla
+        // 4. Revelar pantalla
         if (ScreenFader.Instance != null)
             yield return ScreenFader.Instance.FadeIn();
 
@@ -296,6 +297,10 @@ public class GameManager : MonoBehaviour
 
         // Activar Player + HUD
         ActivatePlayerAndHUD();
+
+        // Snap de cámara (opcional – descomentar si se nota el viaje de la cámara)
+        // var camFollow = FindFirstObjectByType<CameraFollow>();
+        // if (camFollow != null) camFollow.SnapToTarget();
     }
 
     private IEnumerator UnloadLevelPair(string baseName)

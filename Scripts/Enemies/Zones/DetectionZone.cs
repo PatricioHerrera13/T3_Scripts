@@ -6,7 +6,7 @@ public class DetectionZone : MonoBehaviour
     [SerializeField] private float detectionRadius = 5f;
     [SerializeField] private LayerMask playerLayer;
     [SerializeField] private bool requiresLineOfSight = false;
-    [SerializeField] private LayerMask obstacleLayer; // Solo si usas Line of Sight
+    [SerializeField] private LayerMask obstacleLayer;
 
     [Header("Gizmos")]
     [SerializeField] private Color gizmoColor = new Color(1f, 0.8f, 0.2f, 0.25f);
@@ -15,7 +15,19 @@ public class DetectionZone : MonoBehaviour
 
     private void Start()
     {
-        // Buscamos al player una vez
+        TryFindPlayer();
+    }
+
+    private void TryFindPlayer()
+    {
+        // Preferimos GameManager (más robusto con Additive + Player apagado/encendido)
+        if (GameManager.Instance != null && GameManager.Instance.Player != null)
+        {
+            player = GameManager.Instance.Player.transform;
+            return;
+        }
+
+        // Fallback clásico
         GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
         if (playerObj != null)
             player = playerObj.transform;
@@ -23,22 +35,29 @@ public class DetectionZone : MonoBehaviour
 
     public bool IsPlayerInRange()
     {
-        if (player == null) return false;
+        if (player == null)
+        {
+            TryFindPlayer();
+            if (player == null) return false;
+        }
 
         float distance = Vector2.Distance(transform.position, player.position);
         if (distance > detectionRadius) return false;
 
         if (requiresLineOfSight)
-        {
             return HasLineOfSight();
-        }
 
         return true;
     }
 
     public Vector3 GetPlayerPosition()
     {
-        return player != null ? player.position : Vector3.zero;
+        if (player == null)
+        {
+            TryFindPlayer();
+            if (player == null) return Vector3.zero;
+        }
+        return player.position;
     }
 
     private bool HasLineOfSight()
@@ -49,8 +68,6 @@ public class DetectionZone : MonoBehaviour
         float distance = Vector2.Distance(transform.position, player.position);
 
         RaycastHit2D hit = Physics2D.Raycast(transform.position, direction, distance, obstacleLayer);
-
-        // Si no golpeamos nada, tenemos línea de visión
         return hit.collider == null;
     }
 

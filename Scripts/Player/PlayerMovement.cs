@@ -12,6 +12,9 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float groundCheckRadius = 0.2f;
     [SerializeField] private LayerMask groundLayer;
 
+    [Header("Wall Check")]
+    [SerializeField] private float wallCheckDistance = 0.12f;
+
     [Header("Input")]
     [SerializeField] private InputActionAsset inputActions;
 
@@ -22,6 +25,9 @@ public class PlayerMovement : MonoBehaviour
     private float horizontalInput;
     private bool isGrounded;
     private bool facingRight = true;
+
+    private bool isTouchingWallLeft;
+    private bool isTouchingWallRight;
 
     private InputAction moveAction;
     private InputAction jumpAction;
@@ -84,8 +90,24 @@ public class PlayerMovement : MonoBehaviour
             return;
         }
 
-        // Movimiento normal
-        rb.linearVelocity = new Vector2(horizontalInput * moveSpeed, rb.linearVelocity.y);
+        // Detectar paredes
+        isTouchingWallLeft  = Physics2D.Raycast(transform.position, Vector2.left,  wallCheckDistance, groundLayer);
+        isTouchingWallRight = Physics2D.Raycast(transform.position, Vector2.right, wallCheckDistance, groundLayer);
+
+        // Si está presionando hacia una pared → no aplicamos velocidad horizontal
+        bool pressingIntoWall = (isTouchingWallLeft && horizontalInput < 0f) ||
+                                (isTouchingWallRight && horizontalInput > 0f);
+
+        if (pressingIntoWall)
+        {
+            // Solo mantenemos la velocidad vertical (patina / cae)
+            rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
+        }
+        else
+        {
+            // Movimiento normal
+            rb.linearVelocity = new Vector2(horizontalInput * moveSpeed, rb.linearVelocity.y);
+        }
     }
 
     private void OnJump(InputAction.CallbackContext context)
@@ -112,5 +134,10 @@ public class PlayerMovement : MonoBehaviour
             Gizmos.color = Color.red;
             Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
         }
+
+        // Visualización de los raycasts de pared
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawLine(transform.position, transform.position + Vector3.left  * wallCheckDistance);
+        Gizmos.DrawLine(transform.position, transform.position + Vector3.right * wallCheckDistance);
     }
 }
