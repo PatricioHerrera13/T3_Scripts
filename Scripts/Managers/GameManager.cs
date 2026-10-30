@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using System.Collections;
+using System.Collections.Generic;
 
 public class GameManager : MonoBehaviour
 {
@@ -28,6 +29,29 @@ public class GameManager : MonoBehaviour
 
     // Vida con la que se empezó el nivel actual
     private int levelStartHealth = 3;
+
+    // ==================== SISTEMA DE LLAVES ====================
+    private HashSet<string> collectedKeys = new HashSet<string>();
+
+    public void CollectKey(string keyID)
+    {
+        if (string.IsNullOrEmpty(keyID)) return;
+
+        collectedKeys.Add(keyID);
+        Debug.Log($"Llave recogida: {keyID}");
+    }
+
+    public bool HasKey(string keyID)
+    {
+        return collectedKeys.Contains(keyID);
+    }
+
+    public void ClearAllKeys()
+    {
+        collectedKeys.Clear();
+    }
+
+    // ==========================================================
 
     private void Awake()
     {
@@ -222,6 +246,9 @@ public class GameManager : MonoBehaviour
             PlayerHealth.ResetDeathState();
         }
 
+        // Resetear llaves del nivel
+        ClearAllKeys();
+
         yield return LoadLevelPair(currentLevelBaseName);
 
         if (ScreenFader.Instance != null)
@@ -262,6 +289,9 @@ public class GameManager : MonoBehaviour
             PlayerHealth.FullHeal();
             PlayerHealth.ResetDeathState();
         }
+
+        // Resetear todas las llaves
+        ClearAllKeys();
 
         yield return SceneManager.LoadSceneAsync(mainMenuScene, LoadSceneMode.Additive);
         SceneManager.SetActiveScene(SceneManager.GetSceneByName(mainMenuScene));
@@ -323,7 +353,7 @@ public class GameManager : MonoBehaviour
 
     private IEnumerator UnloadAllExceptCore()
     {
-        var scenesToUnload = new System.Collections.Generic.List<string>();
+        var scenesToUnload = new List<string>();
 
         for (int i = 0; i < SceneManager.sceneCount; i++)
         {
