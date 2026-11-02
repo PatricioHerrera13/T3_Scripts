@@ -13,7 +13,12 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private LayerMask groundLayer;
 
     [Header("Wall Check")]
-    [SerializeField] private float wallCheckDistance = 0.12f;
+    [SerializeField] private float wallCheckDistance = 0.14f;
+    
+    // Alturas relativas al centro del jugador (ajustables)
+    [SerializeField] private float headOffset = 0.45f;   // arriba (cabeza)
+    [SerializeField] private float chestOffset = 0.15f;  // pecho
+    [SerializeField] private float legsOffset = -0.35f;  // piernas
 
     [Header("Input")]
     [SerializeField] private InputActionAsset inputActions;
@@ -90,9 +95,9 @@ public class PlayerMovement : MonoBehaviour
             return;
         }
 
-        // Detectar paredes
-        isTouchingWallLeft  = Physics2D.Raycast(transform.position, Vector2.left,  wallCheckDistance, groundLayer);
-        isTouchingWallRight = Physics2D.Raycast(transform.position, Vector2.right, wallCheckDistance, groundLayer);
+        // ========== DETECCIÓN DE PAREDES CON MÚLTIPLES RAYCASTS ==========
+        isTouchingWallLeft  = CheckWall(Vector2.left);
+        isTouchingWallRight = CheckWall(Vector2.right);
 
         // Si está presionando hacia una pared → no aplicamos velocidad horizontal
         bool pressingIntoWall = (isTouchingWallLeft && horizontalInput < 0f) ||
@@ -100,7 +105,7 @@ public class PlayerMovement : MonoBehaviour
 
         if (pressingIntoWall)
         {
-            // Solo mantenemos la velocidad vertical (patina / cae)
+            // Solo mantenemos la velocidad vertical
             rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
         }
         else
@@ -108,6 +113,28 @@ public class PlayerMovement : MonoBehaviour
             // Movimiento normal
             rb.linearVelocity = new Vector2(horizontalInput * moveSpeed, rb.linearVelocity.y);
         }
+    }
+
+    /// <summary>
+    /// Chequea pared en una dirección usando 3 Raycasts (cabeza, pecho, piernas)
+    /// </summary>
+    private bool CheckWall(Vector2 direction)
+    {
+        Vector2 origin = transform.position;
+
+        // Cabeza
+        if (Physics2D.Raycast(origin + Vector2.up * headOffset, direction, wallCheckDistance, groundLayer))
+            return true;
+
+        // Pecho
+        if (Physics2D.Raycast(origin + Vector2.up * chestOffset, direction, wallCheckDistance, groundLayer))
+            return true;
+
+        // Piernas
+        if (Physics2D.Raycast(origin + Vector2.up * legsOffset, direction, wallCheckDistance, groundLayer))
+            return true;
+
+        return false;
     }
 
     private void OnJump(InputAction.CallbackContext context)
@@ -135,9 +162,19 @@ public class PlayerMovement : MonoBehaviour
             Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
         }
 
-        // Visualización de los raycasts de pared
+        // Visualización de los 3 Raycasts por lado
+        Vector3 origin = transform.position;
+
         Gizmos.color = Color.cyan;
-        Gizmos.DrawLine(transform.position, transform.position + Vector3.left  * wallCheckDistance);
-        Gizmos.DrawLine(transform.position, transform.position + Vector3.right * wallCheckDistance);
+
+        // Izquierda
+        Gizmos.DrawLine(origin + Vector3.up * headOffset,  origin + Vector3.up * headOffset  + Vector3.left * wallCheckDistance);
+        Gizmos.DrawLine(origin + Vector3.up * chestOffset, origin + Vector3.up * chestOffset + Vector3.left * wallCheckDistance);
+        Gizmos.DrawLine(origin + Vector3.up * legsOffset,  origin + Vector3.up * legsOffset  + Vector3.left * wallCheckDistance);
+
+        // Derecha
+        Gizmos.DrawLine(origin + Vector3.up * headOffset,  origin + Vector3.up * headOffset  + Vector3.right * wallCheckDistance);
+        Gizmos.DrawLine(origin + Vector3.up * chestOffset, origin + Vector3.up * chestOffset + Vector3.right * wallCheckDistance);
+        Gizmos.DrawLine(origin + Vector3.up * legsOffset,  origin + Vector3.up * legsOffset  + Vector3.right * wallCheckDistance);
     }
 }

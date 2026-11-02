@@ -5,7 +5,7 @@ using System.Collections;
 public class FloatingScorePopup : MonoBehaviour
 {
     [Header("References")]
-    [SerializeField] private TextMeshProUGUI scoreText; // o TextMeshPro si es World Space
+    [SerializeField] private TextMeshPro scoreText;   // ← ahora es TextMeshPro (no UGUI)
 
     [Header("Animation")]
     [SerializeField] private float floatSpeed = 1.8f;
@@ -19,7 +19,7 @@ public class FloatingScorePopup : MonoBehaviour
     private void Awake()
     {
         if (scoreText == null)
-            scoreText = GetComponentInChildren<TextMeshProUGUI>();
+            scoreText = GetComponent<TextMeshPro>();
 
         if (scoreText != null)
             originalColor = scoreText.color;

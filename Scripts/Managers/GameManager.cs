@@ -10,8 +10,8 @@ public class GameManager : MonoBehaviour
     [Header("Player Reference")]
     public PlayerMovement Player;
     public PlayerHealth PlayerHealth;
-    public GameObject PlayerGameObject;      // El GameObject completo del Player
-    public GameObject GameplayHUD;           // El Canvas de la barra de vida
+    public GameObject PlayerGameObject;
+    public GameObject GameplayHUD;
 
     [Header("Scene Names - Flow")]
     public string mainMenuScene = "MainMenu";
@@ -65,7 +65,6 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        // Buscar referencias si no están asignadas
         if (Player == null)
             Player = FindFirstObjectByType<PlayerMovement>(FindObjectsInactive.Include);
 
@@ -108,22 +107,14 @@ public class GameManager : MonoBehaviour
     {
         isLoading = true;
 
-        // 1. Tapar pantalla
         if (ScreenFader.Instance != null)
             yield return ScreenFader.Instance.FadeOut();
 
-        // 2. Descargar menú
         yield return UnloadSceneIfLoaded(mainMenuScene);
 
-        // 3. Cargar Tutorial (solo imagen de controles)
         yield return SceneManager.LoadSceneAsync(tutorialScene, LoadSceneMode.Additive);
         SceneManager.SetActiveScene(SceneManager.GetSceneByName(tutorialScene));
 
-        // IMPORTANTE: NO activamos Player ni HUD aquí.
-        // El Tutorial es solo una imagen/gif de controles.
-        // El Player aparece recién cuando se carga el Level_01.
-
-        // 4. Revelar pantalla
         if (ScreenFader.Instance != null)
             yield return ScreenFader.Instance.FadeIn();
 
@@ -174,7 +165,6 @@ public class GameManager : MonoBehaviour
         yield return SceneManager.LoadSceneAsync(levelCompleteScene, LoadSceneMode.Additive);
         SceneManager.SetActiveScene(SceneManager.GetSceneByName(levelCompleteScene));
 
-        // En LevelComplete normalmente no queremos al Player visible
         DeactivatePlayerAndHUD();
 
         if (ScreenFader.Instance != null)
@@ -202,7 +192,6 @@ public class GameManager : MonoBehaviour
 
         if (currentLevelIndex >= levelOrder.Length)
         {
-            // Ir al Ending
             yield return SceneManager.LoadSceneAsync(endingScene, LoadSceneMode.Additive);
             SceneManager.SetActiveScene(SceneManager.GetSceneByName(endingScene));
             DeactivatePlayerAndHUD();
@@ -219,7 +208,6 @@ public class GameManager : MonoBehaviour
         isLoading = false;
     }
 
-    // Reinicio de nivel (muerte o botón del menú de pausa)
     public void RestartCurrentLevel()
     {
         if (isLoading || string.IsNullOrEmpty(currentLevelBaseName)) return;
@@ -230,7 +218,6 @@ public class GameManager : MonoBehaviour
     {
         isLoading = true;
 
-        // Cerrar menú de pausa si está abierto
         if (PauseMenu.Instance != null)
             PauseMenu.Instance.ClosePauseMenuImmediate();
 
@@ -239,15 +226,18 @@ public class GameManager : MonoBehaviour
 
         yield return UnloadLevelPair(currentLevelBaseName);
 
-        // Restaurar vida con la que se empezó el nivel + estado
         if (PlayerHealth != null)
         {
             PlayerHealth.SetHealth(levelStartHealth);
             PlayerHealth.ResetDeathState();
         }
 
-        // Resetear llaves del nivel
         ClearAllKeys();
+
+        // === SCORE ===
+        if (ScoreManager.Instance != null)
+            ScoreManager.Instance.ResetLevelScore();
+        // =============
 
         yield return LoadLevelPair(currentLevelBaseName);
 
@@ -257,7 +247,6 @@ public class GameManager : MonoBehaviour
         isLoading = false;
     }
 
-    // Volver al menú principal = reinicio completo del juego
     public void ReturnToMainMenu()
     {
         if (isLoading) return;
@@ -274,14 +263,11 @@ public class GameManager : MonoBehaviour
         if (ScreenFader.Instance != null)
             yield return ScreenFader.Instance.FadeOut();
 
-        // Descargar todo excepto Core
         yield return UnloadAllExceptCore();
 
-        // Resetear progreso
         currentLevelIndex = -1;
         currentLevelBaseName = null;
 
-        // Apagar Player + HUD y restaurar vida
         DeactivatePlayerAndHUD();
 
         if (PlayerHealth != null)
@@ -290,8 +276,12 @@ public class GameManager : MonoBehaviour
             PlayerHealth.ResetDeathState();
         }
 
-        // Resetear todas las llaves
         ClearAllKeys();
+
+        // === SCORE ===
+        if (ScoreManager.Instance != null)
+            ScoreManager.Instance.ResetAllScores();
+        // =============
 
         yield return SceneManager.LoadSceneAsync(mainMenuScene, LoadSceneMode.Additive);
         SceneManager.SetActiveScene(SceneManager.GetSceneByName(mainMenuScene));
@@ -316,30 +306,23 @@ public class GameManager : MonoBehaviour
         if (logicScene.IsValid())
             SceneManager.SetActiveScene(logicScene);
 
-        // Guardar la vida con la que se empieza este nivel
         if (PlayerHealth != null)
         {
             levelStartHealth = PlayerHealth.GetCurrentHealth();
         }
 
-        // Posicionar al Player (todavía puede estar apagado)
+        // === SCORE ===
+        if (ScoreManager.Instance != null)
+            ScoreManager.Instance.ResetLevelScore();
+        // =============
+
         PlacePlayerAtSpawn();
 
-        // Activar Player + HUD
         ActivatePlayerAndHUD();
 
-        // ===== SNAP DE CÁMARA (CORREGIDO) =====
+        // Snap de cámara
         if (CameraFollow.Instance != null)
-        {
             CameraFollow.Instance.SnapToTarget();
-        }
-        else
-        {
-            // Fallback por si el Instance todavía no está listo
-            var camFollow = FindFirstObjectByType<CameraFollow>();
-            if (camFollow != null)
-                camFollow.SnapToTarget();
-        }
     }
 
     private IEnumerator UnloadLevelPair(string baseName)
