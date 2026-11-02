@@ -328,9 +328,18 @@ public class GameManager : MonoBehaviour
         // Activar Player + HUD
         ActivatePlayerAndHUD();
 
-        // Snap de cámara (opcional – descomentar si se nota el viaje de la cámara)
-        // var camFollow = FindFirstObjectByType<CameraFollow>();
-        // if (camFollow != null) camFollow.SnapToTarget();
+        // ===== SNAP DE CÁMARA (CORREGIDO) =====
+        if (CameraFollow.Instance != null)
+        {
+            CameraFollow.Instance.SnapToTarget();
+        }
+        else
+        {
+            // Fallback por si el Instance todavía no está listo
+            var camFollow = FindFirstObjectByType<CameraFollow>();
+            if (camFollow != null)
+                camFollow.SnapToTarget();
+        }
     }
 
     private IEnumerator UnloadLevelPair(string baseName)

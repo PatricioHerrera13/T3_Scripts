@@ -26,6 +26,7 @@ public class CameraZone : MonoBehaviour
     [Header("Comportamiento")]
     public bool lockY = false;
     public bool lockX = false;
+    public bool disableLookAhead = false;
     public Vector2 cameraOffset = Vector2.zero;
 
     [Header("Suavizado opcional")]

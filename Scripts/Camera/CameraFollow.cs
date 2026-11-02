@@ -10,13 +10,17 @@ public class CameraFollow : MonoBehaviour
     public Vector2 offset = new Vector2(0f, 0.5f);
 
     [Header("Suavizado base")]
-    public float smoothTimeX = 0.15f;
-    public float smoothTimeY = 0.15f;
+    public float smoothTimeX = 0.22f;
+    public float smoothTimeY = 0.22f;
 
     [Header("Look Ahead")]
     public bool useLookAhead = true;
-    public float lookAheadDistance = 1.8f;
-    public float lookAheadSmooth = 0.25f;
+    public float lookAheadDistance = 0.9f;          // ← Bajé bastante el valor
+    public float lookAheadSmooth = 0.35f;
+
+    [Header("Transición entre zonas")]
+    public float zoneTransitionMultiplier = 3.2f;
+    public float zoneTransitionDuration = 0.85f;
 
     [Header("Límites globales (fallback)")]
     public bool useGlobalBounds = false;
@@ -30,6 +34,8 @@ public class CameraFollow : MonoBehaviour
 
     private CameraZone activeZone;
     private readonly List<CameraZone> overlappingZones = new List<CameraZone>();
+
+    private float zoneTransitionTimer = 0f;
 
     private Camera cam;
     private float halfWidth;
@@ -54,26 +60,41 @@ public class CameraFollow : MonoBehaviour
 
         RecalculateHalfSizes();
 
-        Vector3 desired;
+        if (zoneTransitionTimer > 0f)
+            zoneTransitionTimer -= Time.deltaTime;
 
-        // ---------- 1. Calcular posición deseada según zona activa ----------
+        Vector3 desired;
+        bool canUseLookAhead = useLookAhead;
+
+        // ---------- 1. Calcular posición deseada ----------
         if (activeZone != null)
         {
             desired = activeZone.GetDesiredCameraPosition(target.position, offset);
 
-            // Aplicar Look Ahead solo si no está en Fixed
-            if (useLookAhead && activeZone.mode != CameraZone.ZoneMode.FixedPosition)
+            // Si la zona tiene desactivado el look ahead, no lo usamos
+            if (activeZone.disableLookAhead)
+                canUseLookAhead = false;
+
+            if (canUseLookAhead && activeZone.mode != CameraZone.ZoneMode.FixedPosition)
             {
                 float targetLook = 0f;
                 var rb = target.GetComponent<Rigidbody2D>();
                 if (rb != null && Mathf.Abs(rb.linearVelocity.x) > 0.15f)
+                {
+                    // Sentido normal de Look Ahead (cámara se adelanta hacia donde corre el player)
                     targetLook = Mathf.Sign(rb.linearVelocity.x) * lookAheadDistance;
+                }
 
                 currentLookAheadX = Mathf.SmoothDamp(currentLookAheadX, targetLook, ref lookAheadVel, lookAheadSmooth);
                 desired.x += currentLookAheadX;
             }
+            else
+            {
+                // Suavemente volvemos el look ahead a 0
+                currentLookAheadX = Mathf.SmoothDamp(currentLookAheadX, 0f, ref lookAheadVel, lookAheadSmooth);
+            }
 
-            // Clamp final solo en modo Bounds
+            // Clamp solo en Bounds
             if (activeZone.mode == CameraZone.ZoneMode.Bounds)
             {
                 Bounds b = activeZone.GetWorldBounds();
@@ -86,12 +107,14 @@ public class CameraFollow : MonoBehaviour
             // Follow libre
             desired = target.position + (Vector3)offset;
 
-            if (useLookAhead)
+            if (canUseLookAhead)
             {
                 float targetLook = 0f;
                 var rb = target.GetComponent<Rigidbody2D>();
                 if (rb != null && Mathf.Abs(rb.linearVelocity.x) > 0.15f)
+                {
                     targetLook = Mathf.Sign(rb.linearVelocity.x) * lookAheadDistance;
+                }
 
                 currentLookAheadX = Mathf.SmoothDamp(currentLookAheadX, targetLook, ref lookAheadVel, lookAheadSmooth);
                 desired.x += currentLookAheadX;
@@ -108,7 +131,12 @@ public class CameraFollow : MonoBehaviour
         float dampX = smoothTimeX;
         float dampY = smoothTimeY;
 
-        if (activeZone != null && activeZone.overrideDamping)
+        if (zoneTransitionTimer > 0f)
+        {
+            dampX *= zoneTransitionMultiplier;
+            dampY *= zoneTransitionMultiplier;
+        }
+        else if (activeZone != null && activeZone.overrideDamping)
         {
             dampX = activeZone.dampingX;
             dampY = activeZone.dampingY;
@@ -118,7 +146,7 @@ public class CameraFollow : MonoBehaviour
         float newX = Mathf.SmoothDamp(current.x, desired.x, ref velocity.x, dampX);
         float newY = Mathf.SmoothDamp(current.y, desired.y, ref velocity.y, dampY);
 
-        transform.position = new Vector3(newX, newY, current.z);
+        transform.position = new Vector3(newX, newY, -10f);
     }
 
     // ===================== API =====================
@@ -151,7 +179,15 @@ public class CameraFollow : MonoBehaviour
             }
         }
 
-        activeZone = best;
+        if (best != activeZone)
+        {
+            activeZone = best;
+            zoneTransitionTimer = zoneTransitionDuration;
+        }
+        else
+        {
+            activeZone = best;
+        }
     }
 
     public void SnapToTarget()
@@ -159,10 +195,11 @@ public class CameraFollow : MonoBehaviour
         if (target == null) return;
 
         Vector3 pos = target.position + (Vector3)offset;
-        transform.position = new Vector3(pos.x, pos.y, transform.position.z);
+        transform.position = new Vector3(pos.x, pos.y, -10f);
         velocity = Vector3.zero;
         currentLookAheadX = 0f;
         lookAheadVel = 0f;
+        zoneTransitionTimer = 0f;
     }
 
     public void SetTarget(Transform newTarget)
@@ -176,16 +213,4 @@ public class CameraFollow : MonoBehaviour
         halfHeight = cam.orthographicSize;
         halfWidth = halfHeight * cam.aspect;
     }
-
-#if UNITY_EDITOR
-    private void OnDrawGizmosSelected()
-    {
-        if (!useGlobalBounds) return;
-
-        Gizmos.color = Color.yellow;
-        Vector3 center = new Vector3((globalMin.x + globalMax.x) * 0.5f, (globalMin.y + globalMax.y) * 0.5f, 0);
-        Vector3 size = new Vector3(globalMax.x - globalMin.x, globalMax.y - globalMin.y, 0);
-        Gizmos.DrawWireCube(center, size);
-    }
-#endif
 }
