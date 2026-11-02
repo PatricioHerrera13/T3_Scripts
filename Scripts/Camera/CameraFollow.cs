@@ -10,17 +10,21 @@ public class CameraFollow : MonoBehaviour
     public Vector2 offset = new Vector2(0f, 0.5f);
 
     [Header("Suavizado base")]
-    public float smoothTimeX = 0.22f;
-    public float smoothTimeY = 0.22f;
+    public float smoothTimeX = 0.2f;
+    public float smoothTimeY = 0.2f;
 
     [Header("Look Ahead")]
-    public bool useLookAhead = true;
-    public float lookAheadDistance = 0.9f;          // ← Bajé bastante el valor
+    public bool useLookAhead = false;               // Lo dejamos desactivado por defecto
+    public float lookAheadDistance = 0.8f;
     public float lookAheadSmooth = 0.35f;
 
+    [Header("Soft Bounds (importante)")]
+    [Tooltip("Qué tan suave frena la cámara al llegar al borde. Más alto = más suave")]
+    public float softBoundStrength = 3.5f;
+
     [Header("Transición entre zonas")]
-    public float zoneTransitionMultiplier = 3.2f;
-    public float zoneTransitionDuration = 0.85f;
+    public float zoneTransitionMultiplier = 2.8f;
+    public float zoneTransitionDuration = 0.7f;
 
     [Header("Límites globales (fallback)")]
     public bool useGlobalBounds = false;
@@ -34,7 +38,6 @@ public class CameraFollow : MonoBehaviour
 
     private CameraZone activeZone;
     private readonly List<CameraZone> overlappingZones = new List<CameraZone>();
-
     private float zoneTransitionTimer = 0f;
 
     private Camera cam;
@@ -49,7 +52,6 @@ public class CameraFollow : MonoBehaviour
             return;
         }
         Instance = this;
-
         cam = GetComponent<Camera>();
         RecalculateHalfSizes();
     }
@@ -63,71 +65,55 @@ public class CameraFollow : MonoBehaviour
         if (zoneTransitionTimer > 0f)
             zoneTransitionTimer -= Time.deltaTime;
 
-        Vector3 desired;
+        Vector3 desired = target.position + (Vector3)offset;
         bool canUseLookAhead = useLookAhead;
 
-        // ---------- 1. Calcular posición deseada ----------
         if (activeZone != null)
         {
             desired = activeZone.GetDesiredCameraPosition(target.position, offset);
 
-            // Si la zona tiene desactivado el look ahead, no lo usamos
             if (activeZone.disableLookAhead)
                 canUseLookAhead = false;
+        }
 
-            if (canUseLookAhead && activeZone.mode != CameraZone.ZoneMode.FixedPosition)
+        // Look Ahead (solo si está activado)
+        if (canUseLookAhead)
+        {
+            float targetLook = 0f;
+            var rb = target.GetComponent<Rigidbody2D>();
+            if (rb != null && Mathf.Abs(rb.linearVelocity.x) > 0.15f)
             {
-                float targetLook = 0f;
-                var rb = target.GetComponent<Rigidbody2D>();
-                if (rb != null && Mathf.Abs(rb.linearVelocity.x) > 0.15f)
-                {
-                    // Sentido normal de Look Ahead (cámara se adelanta hacia donde corre el player)
-                    targetLook = Mathf.Sign(rb.linearVelocity.x) * lookAheadDistance;
-                }
-
-                currentLookAheadX = Mathf.SmoothDamp(currentLookAheadX, targetLook, ref lookAheadVel, lookAheadSmooth);
-                desired.x += currentLookAheadX;
-            }
-            else
-            {
-                // Suavemente volvemos el look ahead a 0
-                currentLookAheadX = Mathf.SmoothDamp(currentLookAheadX, 0f, ref lookAheadVel, lookAheadSmooth);
+                targetLook = Mathf.Sign(rb.linearVelocity.x) * lookAheadDistance;
             }
 
-            // Clamp solo en Bounds
-            if (activeZone.mode == CameraZone.ZoneMode.Bounds)
-            {
-                Bounds b = activeZone.GetWorldBounds();
-                desired.x = Mathf.Clamp(desired.x, b.min.x + halfWidth, b.max.x - halfWidth);
-                desired.y = Mathf.Clamp(desired.y, b.min.y + halfHeight, b.max.y - halfHeight);
-            }
+            currentLookAheadX = Mathf.SmoothDamp(currentLookAheadX, targetLook, ref lookAheadVel, lookAheadSmooth);
+            desired.x += currentLookAheadX;
         }
         else
         {
-            // Follow libre
-            desired = target.position + (Vector3)offset;
-
-            if (canUseLookAhead)
-            {
-                float targetLook = 0f;
-                var rb = target.GetComponent<Rigidbody2D>();
-                if (rb != null && Mathf.Abs(rb.linearVelocity.x) > 0.15f)
-                {
-                    targetLook = Mathf.Sign(rb.linearVelocity.x) * lookAheadDistance;
-                }
-
-                currentLookAheadX = Mathf.SmoothDamp(currentLookAheadX, targetLook, ref lookAheadVel, lookAheadSmooth);
-                desired.x += currentLookAheadX;
-            }
-
-            if (useGlobalBounds)
-            {
-                desired.x = Mathf.Clamp(desired.x, globalMin.x + halfWidth, globalMax.x - halfWidth);
-                desired.y = Mathf.Clamp(desired.y, globalMin.y + halfHeight, globalMax.y - halfHeight);
-            }
+            currentLookAheadX = Mathf.SmoothDamp(currentLookAheadX, 0f, ref lookAheadVel, lookAheadSmooth);
         }
 
-        // ---------- 2. Suavizado ----------
+        // ---------- SOFT CLAMP (esto elimina el movimiento de mierda) ----------
+        if (activeZone != null && activeZone.mode == CameraZone.ZoneMode.Bounds)
+        {
+            Bounds b = activeZone.GetWorldBounds();
+
+            float minX = b.min.x + halfWidth;
+            float maxX = b.max.x - halfWidth;
+            float minY = b.min.y + halfHeight;
+            float maxY = b.max.y - halfHeight;
+
+            desired.x = SoftClamp(desired.x, minX, maxX, softBoundStrength);
+            desired.y = SoftClamp(desired.y, minY, maxY, softBoundStrength);
+        }
+        else if (useGlobalBounds)
+        {
+            desired.x = SoftClamp(desired.x, globalMin.x + halfWidth, globalMax.x - halfWidth, softBoundStrength);
+            desired.y = SoftClamp(desired.y, globalMin.y + halfHeight, globalMax.y - halfHeight, softBoundStrength);
+        }
+
+        // ---------- Suavizado ----------
         float dampX = smoothTimeX;
         float dampY = smoothTimeY;
 
@@ -149,13 +135,28 @@ public class CameraFollow : MonoBehaviour
         transform.position = new Vector3(newX, newY, -10f);
     }
 
+    // Soft Clamp: en vez de cortar de golpe, frena suavemente
+    private float SoftClamp(float value, float min, float max, float strength)
+    {
+        if (value < min)
+        {
+            float diff = min - value;
+            return value + diff * (1f - Mathf.Exp(-diff * strength * Time.deltaTime * 60f));
+        }
+        else if (value > max)
+        {
+            float diff = value - max;
+            return value - diff * (1f - Mathf.Exp(-diff * strength * Time.deltaTime * 60f));
+        }
+        return value;
+    }
+
     // ===================== API =====================
 
     public void EnterZone(CameraZone zone)
     {
         if (!overlappingZones.Contains(zone))
             overlappingZones.Add(zone);
-
         UpdateActiveZone();
     }
 
