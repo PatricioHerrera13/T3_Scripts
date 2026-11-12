@@ -7,7 +7,7 @@ public class PlayerSceneController : MonoBehaviour
     private PlayerMovement movement;
     private PlayerCombat combat;
 
-    private float originalGravityScale = 3f; // valor por defecto de seguridad
+    private float originalGravityScale = 3f; // valor de seguridad
 
     private void Awake()
     {
@@ -15,7 +15,7 @@ public class PlayerSceneController : MonoBehaviour
         movement = GetComponent<PlayerMovement>();
         combat = GetComponent<PlayerCombat>();
 
-        // Guardamos la gravedad real del prefab (la que configuraste = 3)
+        // Guardamos la gravedad real del prefab (la que configuraste)
         if (rb != null)
             originalGravityScale = rb.gravityScale;
     }
@@ -32,34 +32,25 @@ public class PlayerSceneController : MonoBehaviour
 
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        // Como ahora el Player se apaga completamente fuera de gameplay,
-        // este script se usa menos, pero lo mantenemos seguro.
-        bool isGameplayLevel = scene.name.Contains("_Logic");
+        // Solo reaccionamos cuando se carga una escena de lógica de nivel.
+        // Esto evita que Level_XX_Art (u otras escenas) vuelvan a congelar al player.
+        if (!scene.name.Contains("_Logic"))
+            return;
 
-        if (!isGameplayLevel)
+        // Reactivar física con la gravedad original del prefab
+        if (rb != null)
         {
-            // Congelar
-            if (rb != null)
-            {
-                rb.linearVelocity = Vector2.zero;
-                rb.gravityScale = 0f;
-                rb.simulated = false;
-            }
-
-            if (movement != null) movement.enabled = false;
-            if (combat != null) combat.enabled = false;
+            rb.simulated = true;
+            rb.gravityScale = originalGravityScale;
+            rb.linearVelocity = Vector2.zero;
+            rb.angularVelocity = 0f;
         }
-        else
-        {
-            // Reactivar con la gravedad ORIGINAL del prefab
-            if (rb != null)
-            {
-                rb.simulated = true;
-                rb.gravityScale = originalGravityScale; // ← aquí estaba el bug (antes forzaba 1f)
-            }
 
-            if (movement != null) movement.enabled = true;
-            if (combat != null) combat.enabled = true;
-        }
+        // Aseguramos que los scripts de control estén activos
+        if (movement != null)
+            movement.enabled = true;
+
+        if (combat != null)
+            combat.enabled = true;
     }
 }

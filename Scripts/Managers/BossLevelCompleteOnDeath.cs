@@ -30,8 +30,18 @@ public class BossLevelCompleteOnDeath : MonoBehaviour
 
     private void HandleBossDeath()
     {
-        // Esperamos a que termine la animación de muerte antes de cambiar de escena
-        StartCoroutine(WaitAndCompleteLevel());
+        // Importante: NO empezamos la coroutine en este objeto
+        // porque EnemyHealth lo va a desactivar y mataría la coroutine.
+        // La corremos en el GameManager (que vive en Core y nunca se desactiva).
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.StartCoroutine(WaitAndCompleteLevel());
+        }
+        else
+        {
+            Debug.LogError("BossLevelCompleteOnDeath: GameManager.Instance es null");
+        }
     }
 
     private IEnumerator WaitAndCompleteLevel()

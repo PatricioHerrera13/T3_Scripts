@@ -130,7 +130,7 @@ public class BossSplitHandler : MonoBehaviour
         GameObject minion = Instantiate(minionPrefab, position, Quaternion.identity);
         minion.name = name;
 
-        EnemyHealth minionHealth = minion.GetComponent<EnemyHealth>();
+        EnemyHealth minionHealth = minion.GetComponentInChildren<EnemyHealth>();
         if (minionHealth != null)
         {
             minionHealth.SetMaxHealth(health, true);
